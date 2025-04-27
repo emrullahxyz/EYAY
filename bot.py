@@ -1230,9 +1230,19 @@ async def on_command_error(ctx, error):
 # === KOYEB İÇİN BASİT WEB SUNUCUSU ===
 app = Flask(__name__)
 @app.route('/')
-@app.route('/')
 def home():
-    return "OK", 200
+    """Basit bir sağlık kontrolü endpoint'i."""
+    # Botun hazır olup olmadığını kontrol et
+    if bot and bot.is_ready():
+        # Belki daha fazla bilgi döndürebiliriz (sunucu sayısı vb.)
+        guild_count = len(bot.guilds)
+        return f"Bot '{bot.user.name}' çalışıyor. {guild_count} sunucuda aktif.", 200
+    elif bot and not bot.is_ready():
+        # Bot çalışıyor ama henüz tam hazır değil (login oldu ama on_ready bekleniyor)
+        return "Bot başlatılıyor, henüz hazır değil...", 503 # Service Unavailable
+    else:
+        # Bot nesnesi hiç yoksa veya beklenmedik bir durumdaysa
+        return "Bot durumu bilinmiyor veya başlatılamadı.", 500 # Internal Server Error
 
 def run_webserver():
     """Flask web sunucusunu ayrı bir thread'de çalıştırır."""
