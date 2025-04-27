@@ -1,0 +1,31 @@
+# Hassas bilgiler ve ortam değişkenleri
+.env
+*.env
+env/
+venv/
+
+# Veritabanı dosyası
+bot_data.db
+*.db
+*.sqlite
+*.sqlite3
+
+# Python cache ve derlenmiş dosyalar
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.eggs
+*.egg-info/
+dist/
+build/
+
+# IDE ve OS özel dosyalar (isteğe bağlı ama önerilir)
+.idea/
+.vscode/
+*.DS_Store
+Thumbs.db
+
+# Log dosyaları (eğer oluşturuyorsanız)
+*.log
+logs/
