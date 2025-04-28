@@ -19,9 +19,24 @@ import threading      # Web sunucusunu ayrı thread'de çalıştırmak için
 try:
     from deepseek import DeepSeekClient
     DEEPSEEK_AVAILABLE = True
+    print("DeepSeek kütüphanesi başarıyla import edildi.") # DEBUG için ekleyin
 except ImportError:
     DEEPSEEK_AVAILABLE = False
-    DeepSeekClient = None # Kütüphane yoksa None ata
+    DeepSeekClient = None
+    print("DeepSeek kütüphanesi import edilemedi.") # DEBUG için ekleyin
+except Exception as e:
+    DEEPSEEK_AVAILABLE = False
+    DeepSeekClient = None
+    print(f"DeepSeek import sırasında başka bir hata: {e}") # DEBUG için ekleyin
+    
+import sys
+import subprocess
+print("Python Path:", sys.path)
+try:
+    result = subprocess.run([sys.executable, '-m', 'pip', 'show', 'deepseek'], capture_output=True, text=True, check=True)
+    print("pip show deepseek output:\n", result.stdout)
+except Exception as e:
+    print(f"'pip show deepseek' çalıştırılamadı: {e}")
 
 # --- Logging Ayarları ---
 logging.basicConfig(
