@@ -6,7 +6,7 @@
 
 Google Gemini ve DeepSeek (OpenRouter üzerinden) modellerini destekleyen, özel sohbet kanalları oluşturan gelişmiş bir Discord botu.
 
-![Bot Tanıtım Resmi](https://i.imgur.com/3ZgSW98.png) <!-- İsteğe bağlı: Botun ekran görüntüsü veya GIF'i -->
+<img src="https://i.imgur.com/3ZgSW98.png" alt="Bot Tanıtım Resmi" width="300" height="300"/> <!-- İsteğe bağlı: Botun ekran görüntüsü veya GIF'i -->
 
 ## 🚀 Özellikler
 
