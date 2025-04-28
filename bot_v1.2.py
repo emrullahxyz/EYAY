@@ -1197,7 +1197,10 @@ async def reset_chat_session(ctx: commands.Context):
     if channel_id not in temporary_chat_channels:
         # DB'ye de bakmaya gerek yok, sadece aktif sohbetler için mantıklı
         await ctx.send("Bu komut sadece aktif geçici sohbet kanallarında kullanılabilir.", delete_after=10)
-        try: await ctx.message.delete(delay=10); except: pass
+        try: 
+            await ctx.message.delete(delay=10); 
+        except: 
+            pass
         return
 
     if channel_id in active_ai_chats:
@@ -1221,7 +1224,10 @@ async def reset_chat_session(ctx: commands.Context):
     else:
         logger.info(f"Sıfırlanacak aktif oturum/geçmiş yok: Kanal {channel_id}")
         await ctx.send("✨ Şu anda sıfırlanacak aktif bir konuşma geçmişi/oturumu bulunmuyor. Zaten temiz.", delete_after=10)
-    try: await ctx.message.delete(delay=15); except: pass
+    try: 
+        await ctx.message.delete(delay=15); 
+    except: 
+        pass
 
 @bot.command(name='clear', aliases=['temizle', 'purge'])
 @commands.guild_only()
@@ -1241,7 +1247,10 @@ async def clear_messages(ctx: commands.Context, amount: str = None):
 
     if amount is None:
         await ctx.send(f"Silinecek mesaj sayısı (`{ctx.prefix}clear 5`) veya tümü için `{ctx.prefix}clear all` yazın.", delete_after=10)
-        try: await ctx.message.delete(delay=10); except: pass
+        try: 
+            await ctx.message.delete(delay=10);
+        except: 
+            pass
         return
 
     deleted_count = 0
@@ -1325,19 +1334,30 @@ async def clear_messages(ctx: commands.Context, amount: str = None):
                 await ctx.send(msg, delete_after=7)
 
             except ValueError:
-                 await ctx.send(f"Geçersiz sayı: '{amount}'. Lütfen pozitif bir tam sayı veya 'all' girin.", delete_after=10)
-                 try: await ctx.message.delete(delay=10); except: pass
+                await ctx.send(f"Geçersiz sayı: '{amount}'. Lütfen pozitif bir tam sayı veya 'all' girin.", delete_after=10)
+                try:
+                    # Bu satır bir üstteki try'a göre girintili olmalı
+                    await ctx.message.delete(delay=10)
+                except:
+                    # Bu except, içteki try ile aynı hizada olmalı
+                    pass
             except AssertionError: # Assert kullanmıyoruz artık
                  pass
 
     except discord.errors.Forbidden:
         logger.error(f"HATA: '{ctx.channel.name}' kanalında mesaj silme izni yok (Bot için)!")
         await ctx.send("Bu kanalda mesajları silme iznim yok.", delete_after=10)
-        try: await ctx.message.delete(delay=10); except: pass
+        try: 
+            await ctx.message.delete(delay=10);
+        except: 
+            pass
     except Exception as e:
         logger.error(f".clear hatası: {e}\n{traceback.format_exc()}")
         await ctx.send("Mesajlar silinirken bir hata oluştu.", delete_after=10)
-        try: await ctx.message.delete(delay=10); except: pass
+        try: 
+            await ctx.message.delete(delay=10)
+        except:
+            pass
 
 @bot.command(name='ask', aliases=['sor'])
 @commands.guild_only()
@@ -1350,12 +1370,18 @@ async def ask_in_channel(ctx: commands.Context, *, question: str = None):
         else:
             user_msg = "⚠️ Varsayılan Gemini modeli yüklenemedi. Bot loglarını kontrol edin."
         await ctx.reply(user_msg, delete_after=15)
-        try: await ctx.message.delete(delay=15); except: pass
+        try: 
+            await ctx.message.delete(delay=15)
+        except: 
+            pass
         return
 
     if question is None or not question.strip():
         error_msg = await ctx.reply(f"Lütfen bir soru sorun (örn: `{ctx.prefix}ask Evren nasıl oluştu?`).", delete_after=15)
-        try: await ctx.message.delete(delay=15); except: pass
+        try: 
+            await ctx.message.delete(delay=15)
+        except: 
+            pass
         return
 
     logger.info(f"[{ctx.author.name} @ {ctx.channel.name}] geçici soru (.ask): {question[:100]}...")
@@ -1375,7 +1401,10 @@ async def ask_in_channel(ctx: commands.Context, *, question: str = None):
                  elif "quota" in error_str or "limit" in error_str or "429" in error_str: user_msg = "API kullanım limiti aşıldı."
                  elif "500" in error_str or "internal error" in error_str: user_msg = "Yapay zeka sunucusunda geçici sorun."
                  await ctx.reply(f"⚠️ {user_msg}", delete_after=15)
-                 try: await ctx.message.delete(delay=MESSAGE_DELETE_DELAY); except: pass
+                 try: 
+                     await ctx.message.delete(delay=MESSAGE_DELETE_DELAY)
+                 except: 
+                     pass
                  return
 
             gemini_response_text = ""
@@ -1398,29 +1427,47 @@ async def ask_in_channel(ctx: commands.Context, *, question: str = None):
 
             if prompt_feedback_reason == "SAFETY":
                 await ctx.reply("Girdiğiniz mesaj güvenlik filtrelerine takıldı.", delete_after=15)
-                try: await ctx.message.delete(delay=MESSAGE_DELETE_DELAY); except: pass
+                try: 
+                    await ctx.message.delete(delay=MESSAGE_DELETE_DELAY)
+                except: 
+                    pass
                 return
             elif finish_reason == "SAFETY":
                  await ctx.reply("Yanıt güvenlik filtrelerine takıldı.", delete_after=15)
-                 try: await ctx.message.delete(delay=MESSAGE_DELETE_DELAY); except: pass
+                 try: 
+                     await ctx.message.delete(delay=MESSAGE_DELETE_DELAY)
+                 except: 
+                     passs
                  return
             elif finish_reason == "RECITATION":
                  await ctx.reply("Yanıt, alıntı filtrelerine takıldı.", delete_after=15)
-                 try: await ctx.message.delete(delay=MESSAGE_DELETE_DELAY); except: pass
+                 try: 
+                     await ctx.message.delete(delay=MESSAGE_DELETE_DELAY)
+                 except: 
+                     pass
                  return
             elif finish_reason == "OTHER":
                  await ctx.reply("Yanıt oluşturulamadı (bilinmeyen sebep).", delete_after=15)
-                 try: await ctx.message.delete(delay=MESSAGE_DELETE_DELAY); except: pass
+                 try: 
+                     await ctx.message.delete(delay=MESSAGE_DELETE_DELAY)
+                 except: 
+                     pass
                  return
             elif not gemini_response_text and finish_reason != "STOP": # Yanıt yok ve normal bitmediyse
                  logger.warning(f"Gemini'den .ask için boş yanıt alındı (Finish Reason: {finish_reason}).")
                  await ctx.reply("Üzgünüm, bu soruya bir yanıt alamadım.", delete_after=15)
-                 try: await ctx.message.delete(delay=MESSAGE_DELETE_DELAY); except: pass
+                 try: 
+                     await ctx.message.delete(delay=MESSAGE_DELETE_DELAY)
+                 except: 
+                     pass
                  return
             elif not gemini_response_text: # Yanıt yok ama normal bitti (STOP)
                  logger.info(f"Gemini'den .ask için boş yanıt alındı (Normal bitiş).")
                  # Kullanıcıya bir şey demeye gerek yok, model bazen boş dönebilir.
-                 try: await ctx.message.delete(delay=MESSAGE_DELETE_DELAY); except: pass # Sadece komutu silelim
+                 try: 
+                     await ctx.message.delete(delay=MESSAGE_DELETE_DELAY)
+                 except: 
+                     pass
                  return # Yanıt mesajı gönderme
 
         # Embed oluştur ve gönder
@@ -1461,7 +1508,10 @@ async def ask_in_channel(ctx: commands.Context, *, question: str = None):
     except Exception as e:
         logger.error(f".ask genel hatası: {e}\n{traceback.format_exc()}")
         await ctx.reply("Sorunuz işlenirken beklenmedik bir hata oluştu.", delete_after=15)
-        try: await ctx.message.delete(delay=MESSAGE_DELETE_DELAY); except: pass
+        try: 
+            await ctx.message.delete(delay=MESSAGE_DELETE_DELAY)
+        except: 
+            pass
 
 @ask_in_channel.error
 async def ask_error(ctx, error):
@@ -1469,7 +1519,10 @@ async def ask_error(ctx, error):
     if isinstance(error, commands.CommandOnCooldown):
         delete_delay = max(5, int(error.retry_after) + 1)
         await ctx.send(f"⏳ `.ask` komutu için beklemedesiniz. Lütfen **{error.retry_after:.1f} saniye** sonra tekrar deneyin.", delete_after=delete_delay)
-        try: await ctx.message.delete(delay=delete_delay); except: pass
+        try: 
+            await ctx.message.delete(delay=delete_delay)
+        except: 
+            pass
     else:
         # Diğer hatalar on_command_error'a gitsin
         # logger.error(f".ask error handler'da beklenmedik hata: {error}")
@@ -1576,7 +1629,10 @@ async def set_next_chat_model(ctx: commands.Context, *, model_id_with_or_without
     global user_next_model
     if model_id_with_or_without_prefix is None:
         await ctx.send(f"Lütfen bir model adı belirtin (örn: `{GEMINI_PREFIX}gemini-1.5-flash-latest` veya `{DEEPSEEK_PREFIX}deepseek-chat`). Modeller için `{ctx.prefix}listmodels`.", delete_after=15)
-        try: await ctx.message.delete(delay=15); except: pass
+        try: 
+            await ctx.message.delete(delay=15)
+        except: 
+            pass
         return
 
     model_input = model_id_with_or_without_prefix.strip().replace('`', '') # Backtickleri temizle
@@ -1587,7 +1643,10 @@ async def set_next_chat_model(ctx: commands.Context, *, model_id_with_or_without
     # Model adı geçerli bir prefix ile başlıyor mu kontrol et
     if not model_input.startswith(GEMINI_PREFIX) and not model_input.startswith(DEEPSEEK_PREFIX):
          await ctx.send(f"❌ Lütfen model adının başına `{GEMINI_PREFIX}` veya `{DEEPSEEK_PREFIX}` ön ekini ekleyin. `{ctx.prefix}listmodels` ile kontrol edin.", delete_after=20)
-         try: await ctx.message.delete(delay=20); except: pass
+         try: 
+             await ctx.message.delete(delay=20)
+         except: 
+             pass
          return
 
     async with ctx.typing():
@@ -1645,7 +1704,10 @@ async def set_next_chat_model(ctx: commands.Context, *, model_id_with_or_without
         final_error_msg = error_message if error_message else f"❌ `{model_input}` geçerli bir model adı değil veya bir sorun oluştu."
         await ctx.send(f"{final_error_msg} `{ctx.prefix}listmodels` ile kontrol edin.", delete_after=15)
 
-    try: await ctx.message.delete(delay=20); except: pass
+    try: 
+        await ctx.message.delete(delay=20)
+    except: 
+        pass
 
 
 @bot.command(name='setentrychannel', aliases=['giriskanali'])
@@ -1802,82 +1864,120 @@ async def show_commands(ctx: commands.Context):
 @bot.event
 async def on_command_error(ctx: commands.Context, error):
     """Komutlarla ilgili hataları merkezi olarak yakalar."""
-    # Orijinal hatayı al (invoke veya check hataları için)
     original_error = getattr(error, 'original', error)
 
-    # Komut bulunamadıysa sessiz kal (veya logla)
     if isinstance(error, commands.CommandNotFound):
-        # logger.debug(f"Bilinmeyen komut denendi: {ctx.message.content}")
         return
 
-    # Cooldown hatasını burada veya özel error handler'da yakala
     if isinstance(error, commands.CommandOnCooldown):
-        # .ask için zaten özel handler var, diğerleri için burada
-        if ctx.command and ctx.command.name == 'ask': return # .ask handler'ı devrede
+        if ctx.command and ctx.command.name == 'ask':
+            return
         delete_delay = max(5, int(error.retry_after) + 1)
-        await ctx.send(f"⏳ `{ctx.command.qualified_name}` komutu için beklemedesiniz. Lütfen **{error.retry_after:.1f} saniye** sonra tekrar deneyin.", delete_after=delete_delay)
-        try: await ctx.message.delete(delay=delete_delay); except: pass
+        await ctx.send(
+            f"⏳ `{ctx.command.qualified_name}` komutu için beklemedesiniz. Lütfen **{error.retry_after:.1f} saniye** sonra tekrar deneyin.",
+            delete_after=delete_delay
+        )
+        try:
+            await ctx.message.delete(delay=delete_delay)
+        except Exception:
+            pass
         return
 
-    # Kullanıcı Girdi Hataları
     if isinstance(error, commands.UserInputError):
-         delete_delay = 15
-         command_name = ctx.command.qualified_name if ctx.command else ctx.invoked_with
-         usage = f"`{ctx.prefix}{command_name} {ctx.command.signature if ctx.command else ''}`".replace('=None', '').replace('= Ellipsis', '...')
-         error_message = "Hatalı komut kullanımı."
-         if isinstance(error, commands.MissingRequiredArgument):
-             error_message = f"Eksik argüman: `{error.param.name}`."
-         elif isinstance(error, commands.BadArgument):
-             # Daha açıklayıcı hata mesajları vermeye çalış
-             error_message = f"Geçersiz argüman türü: {error}"
-             if isinstance(error, commands.ChannelNotFound): error_message = f"Kanal bulunamadı: `{error.argument}`."
-             elif isinstance(error, commands.MemberNotFound): error_message = f"Kullanıcı bulunamadı: `{error.argument}`."
-             elif isinstance(error, commands.UserNotFound): error_message = f"Kullanıcı bulunamadı: `{error.argument}`."
-             elif isinstance(error, commands.RoleNotFound): error_message = f"Rol bulunamadı: `{error.argument}`."
-             elif isinstance(error, commands.BadLiteralArgument): error_message = f"Geçersiz seçenek: `{error.argument}`. Şunlardan biri olmalı: {', '.join(f'`{lit}`' for lit in error.literals)}"
-             elif isinstance(error, commands.BadUnionArgument): error_message = f"Geçersiz argüman türü: `{error.param.name}` için uygun bir değer girin." # Union hataları daha karmaşık
-         elif isinstance(error, commands.TooManyArguments):
-             error_message = "Çok fazla argüman girdiniz."
-         await ctx.send(f"⚠️ {error_message}\nDoğru kullanım: {usage}", delete_after=delete_delay)
-         try: await ctx.message.delete(delay=delete_delay); except: pass
-         return
+        delete_delay = 15
+        command_name = ctx.command.qualified_name if ctx.command else ctx.invoked_with
+        usage = f"`{ctx.prefix}{command_name} {ctx.command.signature if ctx.command else ''}`".replace('=None', '').replace('= Ellipsis', '...')
+        error_message = "Hatalı komut kullanımı."
+        if isinstance(error, commands.MissingRequiredArgument):
+            error_message = f"Eksik argüman: `{error.param.name}`."
+        elif isinstance(error, commands.BadArgument):
+            error_message = f"Geçersiz argüman türü: {error}"
+            if isinstance(error, commands.ChannelNotFound):
+                error_message = f"Kanal bulunamadı: `{error.argument}`."
+            elif isinstance(error, commands.MemberNotFound):
+                error_message = f"Kullanıcı bulunamadı: `{error.argument}`."
+            elif isinstance(error, commands.UserNotFound):
+                error_message = f"Kullanıcı bulunamadı: `{error.argument}`."
+            elif isinstance(error, commands.RoleNotFound):
+                error_message = f"Rol bulunamadı: `{error.argument}`."
+            elif isinstance(error, commands.BadLiteralArgument):
+                error_message = f"Geçersiz seçenek: `{error.argument}`. Şunlardan biri olmalı: {', '.join(f'`{lit}`' for lit in error.literals)}"
+            elif isinstance(error, commands.BadUnionArgument):
+                error_message = f"Geçersiz argüman türü: `{error.param.name}` için uygun bir değer girin."
+        elif isinstance(error, commands.TooManyArguments):
+            error_message = "Çok fazla argüman girdiniz."
 
-    # Yetki Hataları
-    delete_user_msg = True; delete_delay = 10
+        await ctx.send(f"⚠️ {error_message}\nDoğru kullanım: {usage}", delete_after=delete_delay)
+        try:
+            await ctx.message.delete(delay=delete_delay)
+        except Exception:
+            pass
+        return
+
+    delete_user_msg = True
+    delete_delay = 10
+
     if isinstance(error, commands.MissingPermissions):
         logger.warning(f"{ctx.author.name}, '{ctx.command.qualified_name}' izni yok: {original_error.missing_permissions}")
         perms = ", ".join(f"`{p.replace('_', ' ').title()}`" for p in original_error.missing_permissions)
         delete_delay = 15
-        await ctx.send(f"⛔ Üzgünüm {ctx.author.mention}, bu komutu kullanmak için şu izinlere sahip olmalısın: **{perms}**", delete_after=delete_delay)
+        await ctx.send(
+            f"⛔ Üzgünüm {ctx.author.mention}, bu komutu kullanmak için şu izinlere sahip olmalısın: **{perms}**",
+            delete_after=delete_delay
+        )
+
     elif isinstance(error, commands.BotMissingPermissions):
         logger.error(f"Botun '{ctx.command.qualified_name}' izni eksik: {original_error.missing_permissions}")
         perms = ", ".join(f"`{p.replace('_', ' ').title()}`" for p in original_error.missing_permissions)
-        delete_delay = 15; delete_user_msg = False # Botun hatası, kullanıcı mesajını silme
-        await ctx.send(f"🆘 Benim bu komutu çalıştırmak için şu izinlere sahip olmam gerekiyor: **{perms}**", delete_after=delete_delay)
+        delete_delay = 15
+        delete_user_msg = False
+        await ctx.send(
+            f"🆘 Benim bu komutu çalıştırmak için şu izinlere sahip olmam gerekiyor: **{perms}**",
+            delete_after=delete_delay
+        )
+
     elif isinstance(error, commands.CheckFailure):
-        # Genel check hataları (guild_only, özel checkler vb.)
         logger.warning(f"Komut kontrolü başarısız: {ctx.command.qualified_name} - Kullanıcı: {ctx.author.name} - Hata: {error}")
         user_msg = "🚫 Bu komutu burada veya bu şekilde kullanamazsınız."
-        if isinstance(error, commands.NoPrivateMessage): user_msg = "🚫 Bu komut sadece sunucu kanallarında kullanılabilir."; delete_user_msg = False; try: await ctx.author.send(user_msg) except: pass
-        elif isinstance(error, commands.PrivateMessageOnly): user_msg = "🚫 Bu komut sadece özel mesajla (DM) kullanılabilir."
-        elif isinstance(error, commands.NotOwner): user_msg = "🚫 Bu komutu sadece bot sahibi kullanabilir."
+
+        if isinstance(error, commands.NoPrivateMessage):
+            user_msg = "🚫 Bu komut sadece sunucu kanallarında kullanılabilir."
+            delete_user_msg = False
+        elif isinstance(error, commands.PrivateMessageOnly):
+            user_msg = "🚫 Bu komut sadece özel mesajla (DM) kullanılabilir."
+        elif isinstance(error, commands.NotOwner):
+            user_msg = "🚫 Bu komutu sadece bot sahibi kullanabilir."
+
+        try:
+            await ctx.author.send(user_msg)
+        except Exception:
+            pass
+
         await ctx.send(user_msg, delete_after=delete_delay)
+
     else:
-        # Diğer tüm beklenmedik hatalar
-        logger.error(f"'{ctx.command.qualified_name if ctx.command else ctx.invoked_with}' işlenirken beklenmedik hata: {type(original_error).__name__}: {original_error}")
-        traceback_str = "".join(traceback.format_exception(type(original_error), original_error, original_error.__traceback__))
+        logger.error(
+            f"'{ctx.command.qualified_name if ctx.command else ctx.invoked_with}' işlenirken beklenmedik hata: {type(original_error).__name__}: {original_error}"
+        )
+        traceback_str = "".join(
+            traceback.format_exception(type(original_error), original_error, original_error.__traceback__)
+        )
         logger.error(f"Traceback:\n{traceback_str}")
         delete_delay = 15
-        # Kullanıcıya genel bir hata mesajı göster
-        await ctx.send("⚙️ Komut işlenirken beklenmedik bir hata oluştu. Sorun devam ederse lütfen geliştirici ile iletişime geçin.", delete_after=delete_delay)
+        await ctx.send(
+            "⚙️ Komut işlenirken beklenmedik bir hata oluştu. Sorun devam ederse lütfen geliştirici ile iletişime geçin.",
+            delete_after=delete_delay
+        )
 
-    # Hata mesajından sonra kullanıcının komut mesajını sil (eğer ayarlandıysa ve sunucudaysa)
     if delete_user_msg and ctx.guild:
         try:
             await ctx.message.delete(delay=delete_delay)
-        except discord.errors.NotFound: pass # Zaten silinmiş
-        except discord.errors.Forbidden: pass # İzin yok
-        except Exception as e: logger.warning(f"Komut hatası sonrası mesaj silinemedi: {e}")
+        except discord.errors.NotFound:
+            pass
+        except discord.errors.Forbidden:
+            pass
+        except Exception as e:
+            logger.warning(f"Komut hatası sonrası mesaj silinemedi: {e}")
 
 # === Render/Koyeb için Web Sunucusu ===
 app = Flask(__name__)
