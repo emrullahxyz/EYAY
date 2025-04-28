@@ -19,21 +19,26 @@ import threading      # Web sunucusunu ayrı thread'de çalıştırmak için
 import sys
 import subprocess
 
+
 logger = logging.getLogger('discord_ai_bot')
 
 # DeepSeek import denemesi
 DEEPSEEK_AVAILABLE = False
 DeepSeekClient = None
-logger.info(">>> DEBUG: Deepseek import deneniyor...") # Başladığını logla
+logger.info(">>> DEBUG: Deepseek import deneniyor...")
 try:
-    from deepseek import DeepSeekClient
+    import deepseek  # Bu satırda mı hata veriyor?
+    logger.info(">>> DEBUG: 'import deepseek' başarılı.")
+    from deepseek import DeepSeekClient # Yoksa bu satırda mı?
+    logger.info(">>> DEBUG: 'from deepseek import DeepSeekClient' başarılı.")
     DEEPSEEK_AVAILABLE = True
     logger.info(">>> DEBUG: DeepSeek kütüphanesi başarıyla import edildi (ana bot içinde).")
-except ImportError:
-    logger.warning(">>> DEBUG: DeepSeek kütüphanesi import edilemedi (ImportError - ana bot içinde).")
+except ImportError as e:
+    # Tam ImportError mesajını logla
+    logger.error(f">>> DEBUG: DeepSeek import sırasında ImportError oluştu: {e}", exc_info=True)
 except Exception as e:
     # Diğer TÜM hataları yakala ve logla
-    logger.error(f">>> DEBUG: DeepSeek import sırasında beklenmedik bir HATA oluştu (ana bot içinde): {type(e).__name__}: {e}", exc_info=True) # traceback önemli
+    logger.error(f">>> DEBUG: DeepSeek import sırasında beklenmedik bir HATA oluştu (ana bot içinde): {type(e).__name__}: {e}", exc_info=True)
     
 
 print("Python Path:", sys.path)
