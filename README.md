@@ -79,26 +79,7 @@ Google Gemini ve DeepSeek (OpenRouter üzerinden) modellerini destekleyen, özel
     ```bash
     python bot_v1.2.py
     ```
-
-## ☁️ Deployment (Render Örneği)
-
-1.  **Render Hesabı Oluşturun:** Henüz yapmadıysanız [Render](https://render.com/) üzerinde bir hesap oluşturun.
-2.  **Yeni Web Servisi Oluşturun:**
-    *   GitHub repository'nizi bağlayın.
-    *   **Environment:** Python seçin.
-    *   **Region:** Size en yakın bölgeyi seçin.
-    *   **Build Command:** `pip install -r requirements.txt` (Genellikle otomatik algılanır).
-    *   **Start Command:** `python bot_v1.2.py`
-3.  **PostgreSQL Eklentisi Ekleyin:**
-    *   Servis ayarlarınızdan "Add-ons" bölümüne gidin.
-    *   "PostgreSQL" seçin ve ücretsiz (veya istediğiniz) planı oluşturun.
-4.  **Ortam Değişkenlerini Ekleyin:**
-    *   Servis ayarlarınızdaki "Environment" bölümüne gidin.
-    *   `.env` dosyanızdaki tüm değişkenleri buraya ekleyin.
-    *   `DATABASE_URL` değişkenini Render PostgreSQL eklentisinin sağladığı "Internal Connection String" (veya "External" - duruma göre) ile değiştirin.
-    *   **Gizli Dosya (Secret File)** olarak `.env` dosyasını yüklemek de bir seçenektir.
-5.  **Deploy Edin:** Ayarları kaydedin ve ilk deploy işlemini başlatın. Bot ve web sunucusu çalışmaya başlayacaktır. Render'ın sağlık kontrolü (health check) web sunucusunun `/` adresine istek göndererek botun canlı olup olmadığını kontrol edecektir.
-
+    
 ## 🤖 Bot Kullanımı
 
 *   **Sohbet Başlatma:** `.env` veya `!setentrychannel` ile ayarladığınız giriş kanalına bir mesaj yazın. Bot size özel bir kanal oluşturacaktır.
