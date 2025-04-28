@@ -16,25 +16,26 @@ from psycopg2.extras import DictCursor # Satırlara sözlük gibi erişim için
 from flask import Flask # Koyeb/Render için web sunucusu
 import threading      # Web sunucusunu ayrı thread'de çalıştırmak için
 # DeepSeek kütüphanesini import etmeyi dene
+import sys
+import subprocess
 
-logger = logging.getLogger('discord_ai_bot') # Mevcut logger'ı kullan
-DEEPSEEK_AVAILABLE = False # Başlangıçta False yapalım
-DeepSeekClient = None      # None olarak başlatalım
+logger = logging.getLogger('discord_ai_bot')
 
+# DeepSeek import denemesi
+DEEPSEEK_AVAILABLE = False
+DeepSeekClient = None
+logger.info(">>> DEBUG: Deepseek import deneniyor...") # Başladığını logla
 try:
     from deepseek import DeepSeekClient
     DEEPSEEK_AVAILABLE = True
-    logger.info(">>> DEBUG: DeepSeek kütüphanesi başarıyla import edildi.") # INFO seviyesinde logla
+    logger.info(">>> DEBUG: DeepSeek kütüphanesi başarıyla import edildi (ana bot içinde).")
 except ImportError:
-    # ImportError özelinde loglama (Bu normalde beklenen hata)
-    logger.warning(">>> DEBUG: DeepSeek kütüphanesi import edilemedi (ImportError).")
+    logger.warning(">>> DEBUG: DeepSeek kütüphanesi import edilemedi (ImportError - ana bot içinde).")
 except Exception as e:
     # Diğer TÜM hataları yakala ve logla
-    logger.error(f">>> DEBUG: DeepSeek import sırasında beklenmedik bir HATA oluştu: {type(e).__name__}: {e}", exc_info=True)
-    # exc_info=True traceback'i de loglar
+    logger.error(f">>> DEBUG: DeepSeek import sırasında beklenmedik bir HATA oluştu (ana bot içinde): {type(e).__name__}: {e}", exc_info=True) # traceback önemli
     
-import sys
-import subprocess
+
 print("Python Path:", sys.path)
 try:
     result = subprocess.run([sys.executable, '-m', 'pip', 'show', 'deepseek'], capture_output=True, text=True, check=True)
