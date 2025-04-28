@@ -74,7 +74,7 @@ OPENROUTER_DEEPSEEK_MODEL_NAME = "deepseek/deepseek-chat" # <<<--- BURAYI KONTRO
 # VEYA eğer ücretsizse:
 # OPENROUTER_DEEPSEEK_MODEL_NAME = "deepseek/deepseek-chat:free" # Dökümandaki tam adı kullanın
 
-DEFAULT_GEMINI_MODEL_NAME = 'gemini-1.5-flash-latest' # Prefixsiz temel ad
+DEFAULT_GEMINI_MODEL_NAME = 'gemini-2.5-flash-preview-04-17' # Prefixsiz temel ad
 # Varsayılan model Gemini olsun (OpenRouter sadece 1 DeepSeek modeli destekliyorsa)
 DEFAULT_MODEL_NAME = f"{GEMINI_PREFIX}{DEFAULT_GEMINI_MODEL_NAME}"
 
