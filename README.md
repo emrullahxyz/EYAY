@@ -108,12 +108,3 @@ Katkılarınız memnuniyetle karşılanır! Lütfen bir Pull Request açmadan ö
 Bu proje [MIT Lisansı](LICENSE) <!-- veya projenizin lisans dosyasına link --> altındadır.
 
 ---
-
-**README'yi Özelleştirme:**
-
-*   **`URL_TO_YOUR_BOT_IMAGE_OR_GIF`**: Botunuzun çalıştığını gösteren bir ekran görüntüsü veya GIF URL'si ekleyin (isteğe bağlı ama önerilir).
-*   **`KULLANICI_ADINIZ/REPOSITORY_ADINIZ`**: Kendi GitHub kullanıcı adınız ve repository adınızla değiştirin.
-*   **Lisans:** Eğer farklı bir lisans kullanıyorsanız (örn: Apache 2.0), ilgili bölümü güncelleyin ve bir `LICENSE` dosyası ekleyin.
-*   **OpenRouter Model Adı:** `OPENROUTER_DEEPSEEK_MODEL_NAME` değişkeninin değerini README içinde de doğru şekilde belirttiğinizden emin olun.
-*   **Ek Detaylar:** Gerekirse kurulum veya kullanım hakkında daha fazla detay ekleyebilirsiniz.
-*   **Badges (Rozetler):** Python sürümü, discord.py sürümü gibi rozetleri projenize uygun şekilde güncelleyebilirsiniz. Shields.io gibi sitelerden farklı rozetler bulabilirsiniz.
