@@ -1248,7 +1248,7 @@ def home():
     if bot and bot.is_ready():
         # Belki daha fazla bilgi döndürebiliriz (sunucu sayısı vb.)
         guild_count = len(bot.guilds)
-        return f"Bot '{bot.user.name}' çalışıyor. {guild_count} sunucuda aktif.", 200
+        return f"EYAY sorunsuz çalışıyor. {guild_count} sunucuda aktif.", 200
     elif bot and not bot.is_ready():
         # Bot çalışıyor ama henüz tam hazır değil (login oldu ama on_ready bekleniyor)
         return "Bot başlatılıyor, henüz hazır değil...", 503 # Service Unavailable
