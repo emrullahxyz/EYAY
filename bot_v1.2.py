@@ -16,18 +16,22 @@ from psycopg2.extras import DictCursor # Satırlara sözlük gibi erişim için
 from flask import Flask # Koyeb/Render için web sunucusu
 import threading      # Web sunucusunu ayrı thread'de çalıştırmak için
 # DeepSeek kütüphanesini import etmeyi dene
+
+logger = logging.getLogger('discord_ai_bot') # Mevcut logger'ı kullan
+DEEPSEEK_AVAILABLE = False # Başlangıçta False yapalım
+DeepSeekClient = None      # None olarak başlatalım
+
 try:
     from deepseek import DeepSeekClient
     DEEPSEEK_AVAILABLE = True
-    print("DeepSeek kütüphanesi başarıyla import edildi.") # DEBUG için ekleyin
+    logger.info(">>> DEBUG: DeepSeek kütüphanesi başarıyla import edildi.") # INFO seviyesinde logla
 except ImportError:
-    DEEPSEEK_AVAILABLE = False
-    DeepSeekClient = None
-    print("DeepSeek kütüphanesi import edilemedi.") # DEBUG için ekleyin
+    # ImportError özelinde loglama (Bu normalde beklenen hata)
+    logger.warning(">>> DEBUG: DeepSeek kütüphanesi import edilemedi (ImportError).")
 except Exception as e:
-    DEEPSEEK_AVAILABLE = False
-    DeepSeekClient = None
-    print(f"DeepSeek import sırasında başka bir hata: {e}") # DEBUG için ekleyin
+    # Diğer TÜM hataları yakala ve logla
+    logger.error(f">>> DEBUG: DeepSeek import sırasında beklenmedik bir HATA oluştu: {type(e).__name__}: {e}", exc_info=True)
+    # exc_info=True traceback'i de loglar
     
 import sys
 import subprocess
@@ -67,8 +71,9 @@ if not GEMINI_API_KEY:
     logger.warning("UYARI: Gemini API Anahtarı bulunamadı! Gemini modelleri kullanılamayacak.")
 if not DEEPSEEK_API_KEY:
     logger.warning("UYARI: DeepSeek API Anahtarı bulunamadı! DeepSeek modelleri kullanılamayacak.")
-elif not DEEPSEEK_AVAILABLE:
-    logger.error("HATA: DeepSeek API anahtarı bulundu ancak 'deepseek' kütüphanesi yüklenemedi. Lütfen `pip install deepseek` komutunu çalıştırın.")
+elif not DEEPSEEK_AVAILABLE: # elif kullanmak önemli
+    # Hata logunu BURAYA taşıyalım, çünkü API anahtarı VARSA ama kütüphane YOKSA bu hatayı vermeliyiz.
+    logger.error("HATA: DeepSeek API anahtarı bulundu ancak 'deepseek' kütüphanesi yüklenemedi/import edilemedi. Lütfen kurulumu ve önceki logları kontrol edin.")
     DEEPSEEK_API_KEY = None # Kütüphane yoksa anahtarı yok say
 
 # Render PostgreSQL bağlantısı için
