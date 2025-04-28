@@ -490,6 +490,18 @@ async def on_message(message):
             # Kullanıcıya bilgi ver (giriş kanalında)
             try: await channel.send(f"{author.mention}, özel sohbet kanalı {new_channel.mention} oluşturuldu!", delete_after=20)
             except Exception as e: logger.warning(f"Giriş kanalına bildirim gönderilemedi: {e}")
+            
+            # ---> DEĞİŞİKLİK BURADA <---
+            # Kullanıcının yazdığı ilk mesajı yeni kanala gönderelim
+            try:
+                # Mesajı "KullanıcıAdı: Mesaj" formatında gönder
+                await new_channel.send(f"**{author.display_name}:** {initial_prompt}")
+                logger.info(f"Kullanıcının ilk mesajı ({original_message_id}) yeni kanala ({new_channel_id}) kopyalandı.")
+            except discord.errors.HTTPException as send_error:
+                 logger.error(f"İlk mesaj yeni kanala gönderilemedi (Muhtemelen çok uzun): {send_error}")
+            except Exception as e:
+                logger.error(f"Kullanıcının ilk mesajı yeni kanala kopyalanamadı: {e}")
+            # ---> DEĞİŞİKLİK SONU <---
 
             # İlk mesajı yeni kanala kopyala ve Gemini'ye gönder
             try:
