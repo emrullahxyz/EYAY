@@ -835,6 +835,17 @@ async def on_message(message: discord.Message):
                  try: await new_channel.send(f"Merhaba {author.mention}! Özel sohbet kanalın oluşturuldu. `{bot.command_prefix[0]}endchat` ile kapatabilirsin.")
                  except Exception as fallback_e: logger.error(f"Yeni kanala ({new_channel_id}) fallback hoşgeldin mesajı da gönderilemedi: {fallback_e}")
 
+            # Kullanıcının ilk mesajını yeni kanala göndererek bağlam oluştur
+            try:
+                # Mesajı kimin yazdığını belirtecek şekilde formatla
+                user_message_format = f"**{author.display_name}:** {initial_prompt}"
+                await new_channel.send(user_message_format)
+                logger.info(f"Kullanıcının ilk mesajı ({original_message_id}) yeni kanal {new_channel_id}'ye gönderildi.")
+            except discord.errors.Forbidden:
+                logger.warning(f"Yeni kanala ({new_channel_id}) kullanıcının ilk mesajı gönderilemedi: İzin yok.")
+            except Exception as e:
+                logger.warning(f"Yeni kanala ({new_channel_id}) kullanıcının ilk mesajı gönderilirken hata: {e}")
+
             if processing_msg:
                 try: await processing_msg.delete()
                 except: pass
