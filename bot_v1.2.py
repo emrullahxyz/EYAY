@@ -1,4 +1,4 @@
-```python
+
 # -*- coding: utf-8 -*-
 # bot_v1.2.py
 
@@ -1947,4 +1947,3 @@ if __name__ == "__main__":
         logger.info("Bot kapatılıyor...")
         # Bot kapatılırken web sunucusu thread'i otomatik olarak duracaktır (daemon=True olduğu için)
         # Gerekirse diğer temizleme işlemleri buraya eklenebilir.
-```
