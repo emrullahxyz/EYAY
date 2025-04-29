@@ -1352,8 +1352,8 @@ async def gemini_direct(ctx: commands.Context, *, question: str = None):
 
         logger.info(f".gemini komutuna yanıt gönderildi.")
         # İsteğe bağlı: Komut mesajını silebiliriz
-        try: await ctx.message.delete()
-        except: pass
+        #try: await ctx.message.delete()
+        #except: pass
 
     except Exception as e:
         logger.error(f".gemini komutunda genel hata: {e}\n{traceback.format_exc()}")
