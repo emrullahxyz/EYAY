@@ -1544,3 +1544,4 @@ if __name__ == "__main__":
     except ImportError as import_err: logger.critical(f"Bot çalıştırılırken kritik import hatası: {import_err}\n{traceback.format_exc()}")
     except Exception as e: logger.critical(f"Bot çalıştırılırken kritik hata: {type(e).__name__}: {e}\n{traceback.format_exc()}")
     finally: logger.info("Bot kapatılıyor...")
+    
