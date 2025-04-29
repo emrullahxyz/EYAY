@@ -1264,32 +1264,31 @@ async def show_commands(ctx: commands.Context):
 
 @bot.command(name='gemini', aliases=['g'])
 @commands.guild_only()
-@commands.cooldown(1, 5, commands.BucketType.user) # Spam önleme
+@commands.cooldown(1, 5, commands.BucketType.user)
 async def gemini_direct(ctx: commands.Context, *, question: str = None):
     """
     (Sadece Sohbet Kanalında) Geçerli kanaldaki varsayılan modeli DEĞİŞTİRMEDEN,
     doğrudan varsayılan Gemini modeline soru sorar.
     """
     channel_id = ctx.channel.id
-    # Sadece geçici sohbet kanallarında çalışsın
     if channel_id not in temporary_chat_channels:
-        await ctx.send("Bu komut sadece özel sohbet kanallarında kullanılabilir.", delete_after=10)
-        try: await ctx.message.delete(delay=10)
-        except: pass
-        return
+        # await ctx.send("Bu komut sadece özel sohbet kanallarında kullanılabilir.", delete_after=10)
+        # Komut yanlış yerde kullanıldıysa mesajı silmek iyi olabilir yine de? Karar sizin.
+        # try: await ctx.message.delete(delay=10)
+        # except: pass
+        return # Sadece geçici kanallarda çalışırsa sessizce çıkalım
 
-    # Gemini API anahtarı ve modeli yüklü mü?
-    global gemini_default_model_instance # .ask komutunun kullandığı global model
+    global gemini_default_model_instance
     if not GEMINI_API_KEY or not gemini_default_model_instance:
-        await ctx.send("⚠️ Gemini API anahtarı ayarlanmamış veya varsayılan model yüklenememiş.", delete_after=10)
-        try: await ctx.message.delete(delay=10)
-        except: pass
+        await ctx.reply("⚠️ Gemini API anahtarı ayarlanmamış veya varsayılan model yüklenememiş.", delete_after=10)
+        # try: await ctx.message.delete(delay=10) # Hata durumunda silinebilir
+        # except: pass
         return
 
     if question is None or not question.strip():
         await ctx.reply(f"Lütfen komuttan sonra bir soru sorun (örn: `{ctx.prefix}gemini Türkiye'nin başkenti neresidir?`).", delete_after=15)
-        try: await ctx.message.delete(delay=15)
-        except: pass
+        # try: await ctx.message.delete(delay=15) # Hata durumunda silinebilir
+        # except: pass
         return
 
     logger.info(f"[{ctx.author.name} @ {ctx.channel.name}] doğrudan Gemini'ye sordu: {question[:100]}...")
@@ -1298,26 +1297,21 @@ async def gemini_direct(ctx: commands.Context, *, question: str = None):
     try:
         async with ctx.typing():
             try:
-                # Tek seferlik istek için generate_content kullan
                 response = await asyncio.to_thread(gemini_default_model_instance.generate_content, question)
             except Exception as gemini_e:
                  logger.error(f".gemini komutu için API hatası: {gemini_e}")
                  await ctx.reply("Gemini API ile iletişim kurarken bir sorun oluştu.", delete_after=10)
-                 try: await ctx.message.delete(delay=10) # Hata durumunda komutu sil
-                 except: pass
+                 # try: await ctx.message.delete(delay=10) # Hata durumunda silinebilir
+                 # except: pass
                  return
 
-            gemini_response_text = ""
-            finish_reason = None
-            prompt_feedback_reason = None
-            # Yanıt ve güvenlik kontrolü (.ask komutundakine benzer)
+            gemini_response_text = ""; finish_reason = None; prompt_feedback_reason = None
             try: gemini_response_text = response.text.strip()
-            except ValueError as ve: logger.warning(f".gemini yanıtını okurken hata: {ve}...")
-            except Exception as text_err: logger.error(f".gemini response.text okuma hatası: {text_err}")
+            except: pass # Hata olsa bile devam et, aşağıda kontrol edilecek
             try: finish_reason = response.candidates[0].finish_reason.name
-            except (IndexError, AttributeError): pass
+            except: pass
             try: prompt_feedback_reason = response.prompt_feedback.block_reason.name
-            except AttributeError: pass
+            except: pass
 
             user_error_msg = None
             if prompt_feedback_reason == "SAFETY": user_error_msg = "Girdiğiniz mesaj güvenlik filtrelerine takıldı."
@@ -1328,38 +1322,56 @@ async def gemini_direct(ctx: commands.Context, *, question: str = None):
 
             if user_error_msg:
                  await ctx.reply(f"⚠️ {user_error_msg}", delete_after=15)
-                 try: await ctx.message.delete(delay=15)
-                 except: pass
+                 # try: await ctx.message.delete(delay=15) # Hata durumunda silinebilir
+                 # except: pass
                  return
 
             if not gemini_response_text:
                 logger.warning(f"Gemini'den .gemini için boş yanıt alındı.")
                 await ctx.reply("Üzgünüm, bu soruya bir yanıt alamadım.", delete_after=15)
-                try: await ctx.message.delete(delay=15)
-                except: pass
+                # try: await ctx.message.delete(delay=15) # Hata durumunda silinebilir
+                # except: pass
                 return
 
-        # Yanıtı gönder
-        if len(gemini_response_text) > 2000:
-             logger.info(f".gemini yanıtı >2000kr, parçalanıyor...")
-             parts = [gemini_response_text[i:i+2000] for i in range(0, len(gemini_response_text), 2000)]
-             response_message = await ctx.reply(parts[0]) # İlk parçayı yanıtla gönder
-             for part in parts[1:]:
-                  await ctx.send(part) # Kalanları normal gönder
-                  await asyncio.sleep(0.5)
-        else:
-             response_message = await ctx.reply(gemini_response_text)
+        # --- YANITI EMBED İLE GÖNDER (Model Adı Dahil) ---
+        try:
+            embed = discord.Embed(
+                description=gemini_response_text[:4096], # Embed açıklaması daha uzun olabilir
+                color=discord.Color.blue()
+            )
+            # Kullanılan varsayılan Gemini modelinin adını al (prefixsiz)
+            used_model_name = DEFAULT_GEMINI_MODEL_NAME
+            embed.set_author(
+                name=f"Gemini Yanıtı ({used_model_name})",
+                icon_url="https://i.imgur.com/tGd6A4F.png" # Örnek Gemini ikonu (değiştirilebilir)
+            )
+            # Eğer yanıt çok uzunsa footer'da belirt
+            if len(gemini_response_text) > 4096:
+                 embed.set_footer(text="Yanıtın tamamı gösterilemiyor (Discord limiti aşıldı).")
 
-        logger.info(f".gemini komutuna yanıt gönderildi.")
-        # İsteğe bağlı: Komut mesajını silebiliriz
-        #try: await ctx.message.delete()
-        #except: pass
+            response_message = await ctx.reply(embed=embed)
+            logger.info(f".gemini komutuna yanıt gönderildi.")
+
+        except discord.errors.HTTPException as e:
+             # Embed çok büyükse veya başka bir sorun varsa düz metin gönder
+             logger.warning(f".gemini yanıtı embed olarak gönderilemedi: {e}. Düz metin deneniyor.")
+             try:
+                  response_message = await ctx.reply(f"**Gemini Yanıtı ({DEFAULT_GEMINI_MODEL_NAME}):**\n{gemini_response_text[:1900]}") # Düz metin limiti daha düşük
+             except Exception as send_e:
+                  logger.error(f".gemini yanıtı düz metin olarak da gönderilemedi: {send_e}")
+
+        # --- KOMUT MESAJINI SİLME KISMI KALDIRILDI ---
+        # try:
+        #     await ctx.message.delete()
+        # except:
+        #     pass
+        # --- ------------------------------------- ---
 
     except Exception as e:
         logger.error(f".gemini komutunda genel hata: {e}\n{traceback.format_exc()}")
         await ctx.reply("Komutu işlerken beklenmedik bir hata oluştu.", delete_after=15)
-        try: await ctx.message.delete(delay=15)
-        except: pass
+        # try: await ctx.message.delete(delay=15) # Hata durumunda silinebilir
+        # except: pass
 
 @bot.command(name='deepseek', aliases=['ds'])
 @commands.guild_only()
@@ -1370,29 +1382,25 @@ async def deepseek_direct(ctx: commands.Context, *, question: str = None):
     doğrudan yapılandırılmış DeepSeek (OpenRouter) modeline soru sorar.
     """
     channel_id = ctx.channel.id
-    # Sadece geçici sohbet kanallarında çalışsın
     if channel_id not in temporary_chat_channels:
-        await ctx.send("Bu komut sadece özel sohbet kanallarında kullanılabilir.", delete_after=10)
-        try: await ctx.message.delete(delay=10)
-        except: pass
-        return
+        # await ctx.send("Bu komut sadece özel sohbet kanallarında kullanılabilir.", delete_after=10)
+        return # Sessizce çık
 
-    # OpenRouter API anahtarı ve requests kütüphanesi var mı?
     if not OPENROUTER_API_KEY:
-        await ctx.send("⚠️ DeepSeek için OpenRouter API anahtarı ayarlanmamış.", delete_after=10)
-        try: await ctx.message.delete(delay=10)
-        except: pass
+        await ctx.reply("⚠️ DeepSeek için OpenRouter API anahtarı ayarlanmamış.", delete_after=10)
+        # try: await ctx.message.delete(delay=10)
+        # except: pass
         return
     if not REQUESTS_AVAILABLE:
-        await ctx.send("⚠️ DeepSeek (OpenRouter) için 'requests' kütüphanesi bulunamadı.", delete_after=10)
-        try: await ctx.message.delete(delay=10)
-        except: pass
+        await ctx.reply("⚠️ DeepSeek (OpenRouter) için 'requests' kütüphanesi bulunamadı.", delete_after=10)
+        # try: await ctx.message.delete(delay=10)
+        # except: pass
         return
 
     if question is None or not question.strip():
         await ctx.reply(f"Lütfen komuttan sonra bir soru sorun (örn: `{ctx.prefix}deepseek Python kod örneği yaz`).", delete_after=15)
-        try: await ctx.message.delete(delay=15)
-        except: pass
+        # try: await ctx.message.delete(delay=15)
+        # except: pass
         return
 
     logger.info(f"[{ctx.author.name} @ {ctx.channel.name}] doğrudan DeepSeek'e sordu: {question[:100]}...")
@@ -1403,22 +1411,18 @@ async def deepseek_direct(ctx: commands.Context, *, question: str = None):
 
     try:
         async with ctx.typing():
-            # OpenRouter API'sine tek seferlik istek gönder (geçmiş YOK)
             headers = { "Authorization": f"Bearer {OPENROUTER_API_KEY}", "Content-Type": "application/json" }
             if OPENROUTER_SITE_URL: headers["HTTP-Referer"] = OPENROUTER_SITE_URL
             if OPENROUTER_SITE_NAME: headers["X-Title"] = OPENROUTER_SITE_NAME
-            payload = {
-                "model": OPENROUTER_DEEPSEEK_MODEL_NAME,
-                "messages": [{"role": "user", "content": question}] # Sadece kullanıcı sorusu
-            }
+            payload = { "model": OPENROUTER_DEEPSEEK_MODEL_NAME, "messages": [{"role": "user", "content": question}] }
             response_data = None
             try:
                 api_response = await asyncio.to_thread(requests.post, OPENROUTER_API_URL, headers=headers, json=payload, timeout=120)
-                api_response.raise_for_status() # HTTP hatalarını kontrol et
+                api_response.raise_for_status()
                 response_data = api_response.json()
             except requests.exceptions.Timeout: logger.error("OpenRouter API isteği zaman aşımına uğradı."); error_occurred = True; user_error_msg = "Yapay zeka sunucusundan yanıt alınamadı (zaman aşımı)."
             except requests.exceptions.RequestException as e:
-                logger.error(f"OpenRouter API isteği sırasında hata: {e}")
+                logger.error(f"OpenRouter API isteği sırasında hata: {e}"); error_occurred = True
                 if e.response is not None:
                      logger.error(f"OR Hata Kodu: {e.response.status_code}, İçerik: {e.response.text[:200]}")
                      if e.response.status_code == 401: user_error_msg = "OpenRouter API Anahtarı geçersiz."
@@ -1427,12 +1431,8 @@ async def deepseek_direct(ctx: commands.Context, *, question: str = None):
                      elif 400 <= e.response.status_code < 500: user_error_msg = f"OpenRouter API Hatası ({e.response.status_code}): Geçersiz istek."
                      elif 500 <= e.response.status_code < 600: user_error_msg = f"OpenRouter API Sunucu Hatası ({e.response.status_code})."
                 else: user_error_msg = "OpenRouter API'sine bağlanılamadı."
-                error_occurred = True
-            except Exception as thread_e: # asyncio.to_thread içindeki diğer hatalar
-                logger.error(f"OpenRouter API isteği gönderilirken thread hatası: {thread_e}")
-                error_occurred = True; user_error_msg = "Yapay zeka isteği gönderilirken beklenmedik bir hata oluştu."
+            except Exception as thread_e: logger.error(f"OpenRouter API isteği gönderilirken thread hatası: {thread_e}"); error_occurred = True; user_error_msg = "Yapay zeka isteği gönderilirken hata oluştu."
 
-            # Hata yoksa yanıtı işle
             if not error_occurred and response_data:
                 try:
                     ai_response_text = response_data["choices"][0]["message"]["content"].strip()
@@ -1440,46 +1440,61 @@ async def deepseek_direct(ctx: commands.Context, *, question: str = None):
                     if finish_reason == 'length': logger.warning(f"OpenRouter/DeepSeek yanıtı max_tokens sınırına ulaştı (.ds)")
                     elif finish_reason == 'content_filter': user_error_msg = "Yanıt içerik filtrelerine takıldı."; error_occurred = True; logger.warning(f"OpenRouter/DeepSeek content filter block (.ds)"); ai_response_text = None
                     elif finish_reason != 'stop' and not ai_response_text: user_error_msg = f"Yanıt beklenmedik sebeple durdu ({finish_reason})."; error_occurred = True; logger.warning(f"OpenRouter/DeepSeek unexpected finish: {finish_reason} (.ds)"); ai_response_text = None
-                except (KeyError, IndexError, TypeError) as parse_error:
-                    logger.error(f"OpenRouter yanıtı işlenirken hata (.ds): {parse_error}. Yanıt: {response_data}")
-                    error_occurred = True; user_error_msg = "Yapay zeka yanıtı işlenirken sorun oluştu."
-            elif not error_occurred: # response_data yoksa (beklenmez ama olabilir)
-                 error_occurred=True; user_error_msg="Yapay zekadan geçerli yanıt alınamadı."
+                except (KeyError, IndexError, TypeError) as parse_error: logger.error(f"OpenRouter yanıtı işlenirken hata (.ds): {parse_error}. Yanıt: {response_data}"); error_occurred = True; user_error_msg = "Yapay zeka yanıtı işlenirken sorun oluştu."
+            elif not error_occurred: error_occurred=True; user_error_msg="Yapay zekadan geçerli yanıt alınamadı."
 
-        # Hata varsa kullanıcıya bildir
         if error_occurred:
             await ctx.reply(f"⚠️ {user_error_msg}", delete_after=15)
-            try: await ctx.message.delete(delay=15)
-            except: pass
+            # try: await ctx.message.delete(delay=15) # Hata durumunda silinebilir
+            # except: pass
             return
 
-        # Başarılı yanıtı gönder
         if not ai_response_text:
             logger.warning(f"DeepSeek'ten .ds için boş yanıt alındı.")
             await ctx.reply("Üzgünüm, bu soruya bir yanıt alamadım.", delete_after=15)
-            try: await ctx.message.delete(delay=15)
-            except: pass
+            # try: await ctx.message.delete(delay=15) # Hata durumunda silinebilir
+            # except: pass
             return
 
-        # Yanıtı gönder (parçalama dahil)
-        if len(ai_response_text) > 2000:
-             logger.info(f".ds yanıtı >2000kr, parçalanıyor...")
-             parts = [ai_response_text[i:i+2000] for i in range(0, len(ai_response_text), 2000)]
-             response_message = await ctx.reply(parts[0])
-             for part in parts[1:]: await ctx.send(part); await asyncio.sleep(0.5)
-        else:
-             response_message = await ctx.reply(ai_response_text)
+        # --- YANITI EMBED İLE GÖNDER (Model Adı Dahil) ---
+        try:
+            embed = discord.Embed(
+                description=ai_response_text[:4096], # Açıklama limiti daha yüksek
+                color=discord.Color.dark_green() # Farklı bir renk
+            )
+            # Kullanılan DeepSeek model adını al (sabit)
+            used_model_name = OPENROUTER_DEEPSEEK_MODEL_NAME
+            embed.set_author(
+                name=f"DeepSeek Yanıtı ({used_model_name})",
+                icon_url="https://avatars.githubusercontent.com/u/14733136?s=280&v=4" # Örnek OpenRouter ikonu (değiştirilebilir)
+            )
+            if len(ai_response_text) > 4096:
+                embed.set_footer(text="Yanıtın tamamı gösterilemiyor (Discord limiti aşıldı).")
 
-        logger.info(f".ds komutuna yanıt gönderildi.")
-        # İsteğe bağlı: Komut mesajını sil
-        try: await ctx.message.delete()
-        except: pass
+            response_message = await ctx.reply(embed=embed)
+            logger.info(f".ds komutuna yanıt gönderildi.")
+
+        except discord.errors.HTTPException as e:
+             logger.warning(f".ds yanıtı embed olarak gönderilemedi: {e}. Düz metin deneniyor.")
+             try:
+                  response_message = await ctx.reply(f"**DeepSeek Yanıtı ({OPENROUTER_DEEPSEEK_MODEL_NAME}):**\n{ai_response_text[:1900]}")
+             except Exception as send_e:
+                  logger.error(f".ds yanıtı düz metin olarak da gönderilemedi: {send_e}")
+        # --- ------------------------------------- ---
+
+
+        # --- KOMUT MESAJINI SİLME KISMI KALDIRILDI ---
+        # try:
+        #     await ctx.message.delete()
+        # except:
+        #     pass
+        # --- ------------------------------------- ---
 
     except Exception as e:
         logger.error(f".ds komutunda genel hata: {e}\n{traceback.format_exc()}")
         await ctx.reply("Komutu işlerken beklenmedik bir hata oluştu.", delete_after=15)
-        try: await ctx.message.delete(delay=15)
-        except: pass
+        # try: await ctx.message.delete(delay=15) # Hata durumunda silinebilir
+        # except: pass
 
 # --- Genel Hata Yakalama ---
 # on_command_error fonksiyonu aynı kalır
