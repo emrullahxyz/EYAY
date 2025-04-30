@@ -15,7 +15,7 @@ jobs:
           RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
           RENDER_SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
         run: |  # Pipe karakterinden sonraki satırda hemen komut başlamalı
-          curl --request POST \
+          curl -v --request POST \
             --url https://api.render.com/v1/services/${RENDER_SERVICE_ID}/resume \
             --header 'Accept: application/json' \
             --header "Authorization: Bearer ${RENDER_API_KEY}"
