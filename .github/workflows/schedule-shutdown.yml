@@ -2,20 +2,20 @@ name: Schedule Bot Shutdown
 
 on:
   schedule:
+    # Her gün 21:00 UTC'de çalışır (Türkiye saatiyle gece 00:00)
     - cron: '0 22 * * *'
-  workflow_dispatch:
+  workflow_dispatch: # Manuel çalıştırma için
 
 jobs:
-  suspend-service: # Job adını değiştirmek isteyebilirsin
+  suspend-service: # Job adı isteğe bağlı olarak değiştirilebilir
     runs-on: ubuntu-latest
     steps:
       - name: Suspend Render Service
         env:
           RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
           RENDER_SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
-        run: |
-          curl --request POST \ # <--- POST olarak değiştirildi
-            --url https://api.render.com/v1/services/${RENDER_SERVICE_ID}/suspend \ # <--- URL /suspend olarak değiştirildi
+        run: |  # Pipe karakterinden sonraki satırda hemen komut başlamalı
+          curl --request POST \
+            --url https://api.render.com/v1/services/${RENDER_SERVICE_ID}/suspend \
             --header 'Accept: application/json' \
             --header "Authorization: Bearer ${RENDER_API_KEY}"
-          # --data kısmı kaldırıldı
