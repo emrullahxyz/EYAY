@@ -7,15 +7,35 @@ on:
   workflow_dispatch: # Manuel çalıştırma için
 
 jobs:
-  resume-service: # Job adı isteğe bağlı olarak değiştirilebilir
+  resume-and-restart-service: # Job adını daha açıklayıcı yapabiliriz
     runs-on: ubuntu-latest
     steps:
-      - name: Resume Render Service
+      - name: Resume Render Service # 1. Adım: Servisi devam ettir
+        id: resume # Bu adıma bir ID verelim (opsiyonel ama iyi pratik)
         env:
           RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
           RENDER_SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
-        run: |  # Pipe karakterinden sonraki satırda hemen komut başlamalı
+        run: |
+          echo "Attempting to resume service..."
           curl -v --request POST \
             --url https://api.render.com/v1/services/${RENDER_SERVICE_ID}/resume \
             --header 'Accept: application/json' \
-            --header "Authorization: Bearer ${RENDER_API_KEY}"
+            --header "Authorization: Bearer ${RENDER_API_KEY}" \
+            --fail # Eğer HTTP hatası olursa (4xx, 5xx) workflow'u başarısız yap
+
+      - name: Wait for service to potentially stabilize # 2. Adım: Kısa bir süre bekle
+        if: steps.resume.outcome == 'success' # Sadece resume başarılıysa bekle
+        run: sleep 15 # 15 saniye bekle (resume işleminin oturması için)
+
+      - name: Restart Render Service # 3. Adım: Servisi yeniden başlat
+        if: steps.resume.outcome == 'success' # Sadece resume başarılıysa yeniden başlat
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          RENDER_SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
+        run: |
+          echo "Attempting to restart service..."
+          curl -v --request POST \
+            --url https://api.render.com/v1/services/${RENDER_SERVICE_ID}/restart \
+            --header 'Accept: application/json' \
+            --header "Authorization: Bearer ${RENDER_API_KEY}" \
+            --fail # Eğer HTTP hatası olursa workflow'u başarısız yap
