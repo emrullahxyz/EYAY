@@ -1,0 +1,24 @@
+name: Schedule Bot Startup
+
+on:
+  schedule:
+    # Her gün 09:00 UTC'de çalışır (Türkiye saatiyle sabah 12:00)
+    - cron: '0 9 * * *'
+  workflow_dispatch: # Manuel çalıştırma için
+
+jobs:
+  scale-up:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Scale Render Service to 1 Instance
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+          RENDER_SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
+        run: |
+          curl --request PATCH \
+            --url https://api.render.com/v1/services/${RENDER_SERVICE_ID} \
+            --header 'Accept: application/json' \
+            --header 'Content-Type: application/json' \
+            --header "Authorization: Bearer ${RENDER_API_KEY}" \
+            --data '{"numInstances": 1}'
+          # Eğer normalde 1'den fazla instance kullanıyorsan yukarıdaki 1'i değiştir.
