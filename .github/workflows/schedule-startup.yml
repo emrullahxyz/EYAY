@@ -7,17 +7,17 @@ on:
   workflow_dispatch: # Manuel çalıştırma için
 
 jobs:
-  resume-and-redeploy-service: # Job adını güncelleyelim
+  resume-and-redeploy-service: # Job adı
     runs-on: ubuntu-latest
     steps:
-      - name: Resume Render Service # 1. Adım: Servisi devam ettir
+      - name: Resume Render Service # 1. Adım: Servisi devam ettir (Bu adım artık çalışıyor)
         id: resume
         env:
           RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
           RENDER_SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
         run: |
           echo "Attempting to resume service..."
-          curl -v --request POST \
+          curl --request POST \
             --url https://api.render.com/v1/services/${RENDER_SERVICE_ID}/resume \
             --header 'Accept: application/json' \
             --header "Authorization: Bearer ${RENDER_API_KEY}" \
@@ -25,17 +25,17 @@ jobs:
 
       - name: Wait for service to potentially stabilize # 2. Adım: Kısa bir süre bekle
         if: steps.resume.outcome == 'success'
-        run: sleep 15 # 15 saniye bekle
+        run: sleep 15
 
-      - name: Trigger Redeploy Render Service # 3. Adım: Yeniden Deploy'u tetikle
+      - name: Trigger Redeploy Render Service # 3. Adım: Yeniden Deploy'u tetikle (HATA BURADA)
         if: steps.resume.outcome == 'success'
         env:
           RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
           RENDER_SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
-        run: | # <--- Buraya dikkat!
+        run: | # <--- BU BLOK ÖNEMLİ
           echo "Attempting to trigger redeploy..."
-          # <-- echo ile curl arasında HİÇBİR ŞEY olmamalı (--- satırı vb. yok)
-          curl -v --request POST \
+          # <-- echo ile curl arasında KESİNLİKLE --- OLMAMALI -->
+          curl --request POST \
             --url https://api.render.com/v1/services/${RENDER_SERVICE_ID}/deploys \
             --header 'Accept: application/json' \
             --header "Authorization: Bearer ${RENDER_API_KEY}" \
