@@ -32,11 +32,12 @@ jobs:
         env:
           RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
           RENDER_SERVICE_ID: ${{ secrets.RENDER_SERVICE_ID }}
-        run: |
+        run: | # <--- Buraya dikkat!
           echo "Attempting to trigger redeploy..."
+          # <-- echo ile curl arasında HİÇBİR ŞEY olmamalı (--- satırı vb. yok)
           curl -v --request POST \
-            --url https://api.render.com/v1/services/${RENDER_SERVICE_ID}/deploys \ # <--- URL /deploys olarak değişti
+            --url https://api.render.com/v1/services/${RENDER_SERVICE_ID}/deploys \
             --header 'Accept: application/json' \
             --header "Authorization: Bearer ${RENDER_API_KEY}" \
-            --data '{}' # <--- Genellikle boş bir JSON veya hiç data gönderilmez, boş JSON daha güvenli olabilir
+            --data '{}' \
             --fail
