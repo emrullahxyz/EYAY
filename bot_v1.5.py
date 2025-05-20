@@ -1120,7 +1120,7 @@ async def on_ready():
     logger.info(f"Bot {len(bot.guilds)} sunucuda aktif. Aktivite: '{activity_name}'")
     
     logger.info("Bot komutları ve mesajları dinliyor..."); print("-" * 20)
-        logger.info("Render'daki olası dosya yolları kontrol ediliyor:")
+    logger.info("Render'daki olası dosya yolları kontrol ediliyor:")
     possible_paths = [
         "cookies.txt",  # Çalışma dizini
         "/app/cookies.txt", # Render'da yaygın bir uygulama yolu
