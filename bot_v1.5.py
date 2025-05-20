@@ -1464,7 +1464,7 @@ async def set_entry_channel(ctx: commands.Context, channel: Optional[discord.Tex
         await ctx.send(f"❌ {channel.mention} kanalında izinlerim eksik.", delete_after=15); return
     entry_channel_id = channel.id; save_config_db('entry_channel_id', entry_channel_id)
     await ctx.send(f"✅ Giriş kanalı {channel.mention} olarak ayarlandı.")
-    try: await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name=f"#{channel.name} | AI Chat"))
+    try: await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name="!help | AI & Müzik"))
     except: pass
 
 @bot.command(name='settimeout', aliases=['zamanasimi'])
