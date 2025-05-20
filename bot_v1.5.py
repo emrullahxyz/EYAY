@@ -154,6 +154,9 @@ class MusicPlayer:
             'default_search': 'auto',
             'source_address': '0.0.0.0', # Bağlantı sorunlarını çözmeye yardımcı olabilir
             'extract_flat': 'in_playlist', # Playlist'leri verimli işlemek için
+            'cookiefile': '/etc/secrets/cookies.txt', # Render'da Secret File olarak belirttiğiniz yol
+            'geo_bypass': True, # Coğrafi kısıtlamaları atlamaya yardımcı olabilir
+
         }
         self.ffmpeg_options = {
             'before_options': '-reconnect 1 -reconnect_streamed 1 -reconnect_delay_max 5',
