@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 # bot_v1.6_corrected_v2.py - Discord Bot with AI Chat and Music
 
+
 import discord
 from discord.ext import commands, tasks
 import os
