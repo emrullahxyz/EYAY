@@ -1106,15 +1106,16 @@ async def on_ready():
     if not cleanup_command_tracking.is_running(): cleanup_command_tracking.start()
     await music_player.load_volume_settings() # <<<--- Düzeltilmiş çağrı burada
 
-    activity_name = "/help | AI & Music"
+    activity_name = "!help | AI & Music"
     if entry_channel_id:
         try:
             entry_ch_obj = await bot.fetch_channel(entry_channel_id)
-            if entry_ch_obj: activity_name = f"#{entry_ch_obj.name} | AI Chat"
+            if entry_ch_obj: activity_name = "!help | AI & Music"
         except: pass
     await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name=activity_name))
     logger.info(f"Bot {len(bot.guilds)} sunucuda aktif. Aktivite: '{activity_name}'")
     logger.info("Bot komutları ve mesajları dinliyor..."); print("-" * 20)
+
 
 
 @bot.event
@@ -1464,7 +1465,7 @@ async def set_entry_channel(ctx: commands.Context, channel: Optional[discord.Tex
         await ctx.send(f"❌ {channel.mention} kanalında izinlerim eksik.", delete_after=15); return
     entry_channel_id = channel.id; save_config_db('entry_channel_id', entry_channel_id)
     await ctx.send(f"✅ Giriş kanalı {channel.mention} olarak ayarlandı.")
-    try: await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name="!help | AI & Müzik"))
+    try: await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name="!help | AI & Music"))
     except: pass
 
 @bot.command(name='settimeout', aliases=['zamanasimi'])
