@@ -2,8 +2,8 @@ name: Schedule Bot Shutdown
 
 on:
   schedule:
-    # Her gün 21:00 UTC'de çalışır (Türkiye saatiyle gece 00:00)
-    - cron: '0 22 * * *'
+    # Her gün 23:00 UTC'de çalışır (Türkiye saatiyle gece 01:00)
+    - cron: '0 23 * * *'
   workflow_dispatch: # Manuel çalıştırma için
 
 jobs:
