@@ -156,6 +156,7 @@ class MusicPlayer:
             'extract_flat': 'in_playlist', # Playlist'leri verimli işlemek için
             'cookiefile': '/etc/secrets/cookies.txt', # Render'da Secret File olarak belirttiğiniz yol
             'geo_bypass': True, # Coğrafi kısıtlamaları atlamaya yardımcı olabilir
+            'cookiefile': 'TESPIT_EDILEN_DOGRU_YOL/cookies.txt',
 
         }
         self.ffmpeg_options = {
@@ -1117,7 +1118,20 @@ async def on_ready():
         except: pass
     await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name=activity_name))
     logger.info(f"Bot {len(bot.guilds)} sunucuda aktif. Aktivite: '{activity_name}'")
+    
     logger.info("Bot komutları ve mesajları dinliyor..."); print("-" * 20)
+        logger.info("Render'daki olası dosya yolları kontrol ediliyor:")
+    possible_paths = [
+        "cookies.txt",  # Çalışma dizini
+        "/app/cookies.txt", # Render'da yaygın bir uygulama yolu
+        "/opt/render/project/src/cookies.txt", # Başka bir olası yol
+        "/etc/secrets/cookies.txt" # Standart secret yolu
+    ]
+    for path_to_check in possible_paths:
+        if os.path.exists(path_to_check):
+            logger.info(f"BULUNDU: Gizli dosya şu yolda olabilir: {path_to_check}")
+        else:
+            logger.info(f"Bulunamadı: {path_to_check}")
 
 
 
