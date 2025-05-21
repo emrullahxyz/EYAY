@@ -1322,93 +1322,221 @@ async def on_command_error(ctx: commands.Context, error: commands.CommandError):
 async def play_music_cmd(ctx: commands.Context, *, query: str = None):
     if MUSIC_CHANNEL_ID != 0 and ctx.channel.id != MUSIC_CHANNEL_ID:
         await ctx.send(f"Müzik komutları <#{MUSIC_CHANNEL_ID}> kanalında.", delete_after=10); return
-    if query is None and ctx.message.attachments:
-        if ctx.message.attachments[0].filename.lower().endswith(('.mp3','.wav','.ogg','.m4a','.flac')): query = ctx.message.attachments[0].url
-        else: await ctx.send("Desteklenmeyen dosya veya şarkı adı/URL belirtin."); return
-    elif query is None: await ctx.send("Şarkı adı/URL belirtin."); return
-    if not await music_player.join_voice_channel(ctx): return
-    loading_msg = await ctx.send(f"⌛ **{query[:70]}{'...' if len(query)>70 else ''}** aranıyor...")
-    try:
-        ytdl_opts = music_player.ytdl_format_options.copy() # Her seferinde kopyasını al
-        # ytdl_opts['cookiefile'] = music_player.cookie_file_to_use # MusicPlayer içindeki set_cookie_file_for_ytdlp bunu zaten yapıyor.
-                                                                  # Emin olmak için burada tekrar set edilebilir veya __init__ içinde atanan referansın güncel olduğu varsayılır.
-                                                                  # En iyisi, ytdl_opts'u her zaman music_player.ytdl_format_options'tan taze almak.
 
-        with yt_dlp.YoutubeDL(music_player.ytdl_format_options) as ydl: # Doğrudan music_player'ın güncel seçeneklerini kullan
+    if query is None and ctx.message.attachments:
+        if ctx.message.attachments[0].filename.lower().endswith(('.mp3','.wav','.ogg','.m4a','.flac')):
+            query = ctx.message.attachments[0].url
+        else:
+            await ctx.send("Desteklenmeyen dosya. Şarkı adı/URL belirtin veya desteklenen bir ses dosyası eki kullanın."); return
+    elif query is None:
+        await ctx.send("Lütfen bir şarkı adı, YouTube/SoundCloud URL'si veya playlist URL'si belirtin."); return
+
+    if not await music_player.join_voice_channel(ctx):
+        return # Ses kanalına katılamazsa komuttan çık
+
+    loading_msg = await ctx.send(f"⌛ **{query[:70]}{'...' if len(query)>70 else ''}** aranıyor...")
+
+    try:
+        # Her zaman music_player'dan güncel ytdl seçeneklerini al
+        # Bu, on_ready'de cookiefile ayarlandıktan sonra doğru seçeneklerin kullanılmasını sağlar.
+        current_ytdl_opts = music_player.ytdl_format_options.copy()
+        # Eğer cookie_file_to_use (dinamik olarak bulunan yol) MusicPlayer'da set edildiyse,
+        # ytdl_format_options'daki cookiefile'ın bu değeri yansıtması gerekir.
+        # MusicPlayer.set_cookie_file_for_ytdlp metodu bunu zaten yapıyor.
+
+        with yt_dlp.YoutubeDL(current_ytdl_opts) as ydl:
             info = await asyncio.to_thread(ydl.extract_info, query, download=False)
 
-        songs_to_add = []; playlist_title = None
+        songs_to_add = []
+        playlist_title_for_msg = None # Mesaj için playlist başlığı
+
         if '_type' in info and info['_type'] == 'playlist':
-            playlist_title = info.get('title', 'Oynatma Listesi'); max_items = 50; count = 0
-            logger.info(f"Oynatma listesi bulundu: {playlist_title}, {len(info.get('entries',[]))} video.")
+            playlist_title_for_msg = info.get('title', 'Bilinmeyen Oynatma Listesi')
+            max_playlist_items = 50  # Güvenlik sınırı
+            processed_items_count = 0 # İşlenen öğe sayısı
+            logger.info(f"Oynatma listesi bulundu: '{playlist_title_for_msg}', {len(info.get('entries',[]))} öğe içeriyor. En fazla {max_playlist_items} işlenecek.")
+
             for entry in info.get('entries', []):
-                if count >= max_items: logger.info("Playlist max item limitine ulaşıldı."); break
-                if entry:
-                    url_detail = entry.get('url') or (f"https://www.youtube.com/watch?v={entry['id']}" if entry.get('id') else None)
-                    if not url_detail: logger.warning(f"Playlist öğesi için URL yok: {entry.get('title')}"); continue
-                    try:
-                        # Her video için detaylı bilgi, güncel ytdl_format_options ile alınır
-                        with yt_dlp.YoutubeDL(music_player.ytdl_format_options) as ydl_detail: # music_player'ın güncel seçeneklerini kullan
-                            v_info = await asyncio.to_thread(ydl_detail.extract_info, url_detail, download=False)
+                if processed_items_count >= max_playlist_items:
+                    logger.info(f"Oynatma listesi için {max_playlist_items} video işleme limitine ulaşıldı.")
+                    break
+                
+                if not entry: # Bazen None entry gelebilir
+                    logger.warning("Playlist içinde None bir entry bulundu, atlanıyor.")
+                    continue
 
-                        if not v_info: # Eğer yt-dlp video bilgisini alamadıysa (None döndüyse)
-                            logger.warning(f"Playlist öğesi için video bilgisi alınamadı (v_info is None): {url_detail}")
-                            continue # Bu öğeyi atla
+                video_url_for_details = entry.get('url')
+                if not video_url_for_details and entry.get('id'): # YouTube için
+                    video_url_for_details = f"https://www.youtube.com/watch?v={entry['id']}"
 
-                        if v_info.get('entries'): # Hala playlist gibi bir yapıysa ilkini al
-                            if not v_info['entries']:
-                                logger.warning(f"Playlist öğesi için 'entries' boş geldi: {url_detail}")
-                                continue
-                            v_info = v_info['entries'][0]
-                            if not v_info: # entries[0] da None olabilir
-                                logger.warning(f"Playlist öğesi için 'entries[0]' None geldi: {url_detail}")
-                                continue
-                        
-                        title = v_info.get('title', f'Bilinmeyen Video ({count+1})') # v_info None değilse .get() güvenli
-                        stream = v_info.get('url')
-                        # ... (geri kalan kod aynı) ...
-                        if stream:
-                            songs_to_add.append({'title':title,'url':stream,'duration':dur_str,'thumbnail':thumb,'requester':ctx.author.display_name})
-                        else:
-                            logger.warning(f"Stream URL bulunamadı (playlist item): {title} - URL: {url_detail}")
-                        count += 1
-                    except yt_dlp.utils.DownloadError as e_dl_playlist:
-                        logger.warning(f"Playlist öğesi '{entry.get('title', url_detail)}' indirilemedi/bilgi alınamadı: {e_dl_playlist}")
-                    except Exception as e_playlist_item:
-                        logger.error(f"Playlist öğesi işlenirken beklenmedik hata ({entry.get('title', url_detail)}): {e_playlist_item}")
-        else:
-            if 'entries' in info and info.get('entries'): info = info['entries'][0] # Arama sonucuysa ilkini al
-            title=info.get('title','Bilinmeyen');stream=info.get('url');dur_s=info.get('duration',0)
-            dur_str=str(datetime.timedelta(seconds=dur_s)) if dur_s else 'Bilinmiyor';thumb=info.get('thumbnail')
-            if stream: songs_to_add.append({'title':title,'url':stream,'duration':dur_str,'thumbnail':thumb,'requester':ctx.author.display_name})
-            else: logger.warning(f"Stream URL bulunamadı (tek video): {title}")
+                if not video_url_for_details:
+                    logger.warning(f"Playlist öğesi için URL bulunamadı: {entry.get('title', 'Başlıksız')}")
+                    continue
 
-        if not songs_to_add: await loading_msg.edit(content=f"❌ Çalınabilir şarkı bulunamadı."); return
-        gid = ctx.guild.id
-        if gid not in music_player.queues: music_player.queues[gid] = deque()
-        for song in songs_to_add: music_player.queues[gid].append(song)
+                # Her video için varsayılan değerleri try bloğunun BAŞINDA ayarla
+                title = entry.get('title', f'Bilinmeyen Video ({processed_items_count+1})') # Ön bilgi
+                stream_url = None
+                dur_str = 'Bilinmiyor'
+                thumb_url = None
+
+                try:
+                    # Her video için detaylı bilgi al, güncel ytdl seçenekleriyle
+                    with yt_dlp.YoutubeDL(current_ytdl_opts) as ydl_detail:
+                        video_detail_info = await asyncio.to_thread(ydl_detail.extract_info, video_url_for_details, download=False)
+                    
+                    if not video_detail_info:
+                        logger.warning(f"Playlist öğesi için video bilgisi alınamadı (v_info is None): {video_url_for_details}")
+                        continue # Bu öğeyi atla
+
+                    # Eğer hala playlist gibi bir yapıysa ilkini al (bazı extractor'lar böyle dönebilir)
+                    if video_detail_info.get('entries'):
+                        if not video_detail_info['entries']: # Entries listesi boşsa
+                            logger.warning(f"Playlist öğesi için 'entries' listesi boş geldi: {video_url_for_details}")
+                            continue
+                        video_detail_info = video_detail_info['entries'][0]
+                        if not video_detail_info: # entries[0] de None olabilir
+                            logger.warning(f"Playlist öğesi için 'entries[0]' None geldi: {video_url_for_details}")
+                            continue
+                    
+                    # Şimdi v_info'dan gerçek değerleri al
+                    title = video_detail_info.get('title', title) # Eğer detayda varsa güncelle, yoksa önceki kalsın
+                    stream_url = video_detail_info.get('url') # Bu FFmpeg'e verilecek URL
+                    duration_seconds = video_detail_info.get('duration') # None olabilir
+                    thumb_url = video_detail_info.get('thumbnail')
+
+                    if duration_seconds is not None and isinstance(duration_seconds, (int, float)) and duration_seconds > 0:
+                        dur_str = str(datetime.timedelta(seconds=int(duration_seconds)))
+                    # else: dur_str zaten 'Bilinmiyor' olarak kalır
+
+                    if stream_url:
+                        songs_to_add.append({
+                            'title': title,
+                            'url': stream_url,
+                            'duration': dur_str,
+                            'thumbnail': thumb_url,
+                            'requester': ctx.author.display_name,
+                            'original_query_playlist_item': video_url_for_details
+                        })
+                        processed_items_count += 1
+                    else:
+                        logger.warning(f"Stream URL bulunamadı (playlist item): {title} - URL: {video_url_for_details}")
+
+                except yt_dlp.utils.DownloadError as e_dl_playlist:
+                    logger.warning(f"Playlist öğesi '{entry.get('title', video_url_for_details)}' indirilemedi/bilgi alınamadı: {e_dl_playlist}")
+                    # Bu hata durumunda, yukarıda tanımlanan varsayılan title, dur_str, thumb_url kullanılır
+                    # ama stream_url None olacağı için songs_to_add'e eklenmez. Sorun yok.
+                except Exception as e_playlist_item:
+                    logger.error(f"Playlist öğesi işlenirken beklenmedik hata ({entry.get('title', video_url_for_details)}): {e_playlist_item}")
+                    # Aynı şekilde, stream_url None kalacağı için eklenmez.
+
+        else: # Tek video veya arama sonucu
+            # Eğer info['entries'] varsa, bu bir arama sonucudur, ilkini al.
+            # (YouTube arama sonuçları için _type: 'playlist' dönebilir, o yüzden bu else if'ten önce işlenir)
+            if 'entries' in info and info.get('entries'):
+                if not info['entries']: # Arama sonucu boşsa
+                    await loading_msg.edit(content=f"❌ `{query[:70]}` için arama sonucu bulunamadı."); return
+                info = info['entries'][0]
+                if not info: # Arama sonucunun ilk elemanı None ise
+                    await loading_msg.edit(content=f"❌ `{query[:70]}` için geçerli arama sonucu bulunamadı."); return
+
+
+            title = info.get('title', 'Bilinmeyen Başlık')
+            stream_url = info.get('url')
+            duration_seconds = info.get('duration') # None olabilir
+            thumb_url = info.get('thumbnail')
+            dur_str = 'Bilinmiyor'
+
+            if duration_seconds is not None and isinstance(duration_seconds, (int, float)) and duration_seconds > 0:
+                dur_str = str(datetime.timedelta(seconds=int(duration_seconds)))
+
+            if stream_url:
+                songs_to_add.append({
+                    'title': title,
+                    'url': stream_url,
+                    'duration': dur_str,
+                    'thumbnail': thumb_url,
+                    'requester': ctx.author.display_name,
+                    'original_query': query
+                })
+            else:
+                logger.warning(f"Stream URL bulunamadı (tek video/arama): {title} - Sorgu: {query}")
+
+        if not songs_to_add:
+            await loading_msg.edit(content=f"❌ `{query[:70]}` için çalınabilir şarkı bulunamadı veya işlenemedi."); return
+
+        guild_id = ctx.guild.id
+        if guild_id not in music_player.queues:
+            music_player.queues[guild_id] = deque()
+
+        for song_info_item in songs_to_add: # Değişken adını değiştirdim
+            music_player.queues[guild_id].append(song_info_item)
+
         vc = ctx.guild.voice_client
+        # Eğer bot zaten çalmıyorsa veya duraklatılmışsa, yeni eklenenleri çalmaya başla
         if not (vc and (vc.is_playing() or vc.is_paused())):
-            await music_player.play_next(gid, ctx) # ctx ileterek "Şimdi Çalınıyor" mesajı gönderilsin
-            try: await loading_msg.delete() # play_next mesaj gönderdiyse bunu sil
-            except: pass
-        else:
-            desc = f"**{playlist_title}** ({len(songs_to_add)} şarkı) kuyruğa eklendi." if playlist_title else f"**{songs_to_add[0]['title']}** kuyruğa eklendi."
-            embed = discord.Embed(title="✅ Kuyruğa Eklendi", description=desc, color=discord.Color.green())
-            if songs_to_add[0].get('thumbnail') and not playlist_title : embed.set_thumbnail(url=songs_to_add[0]['thumbnail'])
-            embed.set_footer(text=f"Ekleyen: {ctx.author.display_name}")
-            await loading_msg.edit(content=None, embed=embed)
-    except yt_dlp.utils.DownloadError as e:
-        logger.warning(f"Müzik DownloadError: {e}")
-        user_msg = str(e)
-        if "confirm you’re not a bot" in user_msg: user_msg = "YouTube bot doğrulamasına takıldı. Çerezler geçerli olmayabilir veya IP kısıtlanmış olabilir."
-        elif "Unsupported URL" in user_msg: user_msg = "Bu URL türü desteklenmiyor."
-        else: user_msg = "Şarkı/video bulunamadı veya erişilemiyor."
-        await loading_msg.edit(content=f"❌ {user_msg} (Detay: {str(e)[:100]})")
-    except Exception as e:
-        logger.error(f"Müzik yüklenirken genel hata: {e}\n{traceback.format_exc()}")
-        await loading_msg.edit(content=f"❌ Müzik yüklenirken bir hata oluştu: {str(e)[:150]}")
+            # play_next, "Şimdi Çalınıyor" mesajını ctx varsa ve from_callback False ise gönderir.
+            # Biz de burada ctx'i iletiyoruz.
+            await music_player.play_next(guild_id, ctx)
+            try:
+                await loading_msg.delete() # play_next mesaj gönderdiyse bunu sil
+            except discord.errors.NotFound:
+                pass # Zaten silinmiş olabilir, sorun değil
+            except Exception as e_del:
+                logger.warning(f"loading_msg silinirken hata: {e_del}")
+        else: # Zaten çalıyorsa kuyruğa eklendi mesajı
+            desc_msg = ""
+            if playlist_title_for_msg:
+                desc_msg = f"**{playlist_title_for_msg}** oynatma listesinden **{len(songs_to_add)}** şarkı kuyruğa eklendi."
+            elif songs_to_add: # Tek şarkı eklendiyse
+                song_added = songs_to_add[0]
+                desc_msg = f"**{song_added['title']}** ({song_added['duration']}) kuyruğa eklendi."
+            else: # Bu durum olmamalı (yukarıda songs_to_add boşsa return var)
+                desc_msg = "Şarkılar kuyruğa eklendi."
 
+
+            embed = discord.Embed(title="✅ Kuyruğa Eklendi", description=desc_msg, color=discord.Color.green())
+            if songs_to_add and songs_to_add[0].get('thumbnail') and not playlist_title_for_msg :
+                embed.set_thumbnail(url=songs_to_add[0]['thumbnail'])
+            embed.set_footer(text=f"Ekleyen: {ctx.author.display_name}")
+            try:
+                await loading_msg.edit(content=None, embed=embed)
+            except discord.errors.NotFound: # loading_msg arada silinmiş olabilir (çok nadir)
+                await ctx.send(embed=embed) # Yeni mesaj gönder
+            except Exception as e_edit:
+                logger.warning(f"loading_msg düzenlenirken hata: {e_edit}")
+
+
+    except yt_dlp.utils.DownloadError as e_main_dl:
+        logger.warning(f"Müzik indirme/bilgi alma hatası (Ana Try-Except): {e_main_dl}")
+        user_friendly_error_msg = str(e_main_dl) # Başlangıç değeri
+        if "Sign in to confirm you're not a bot" in str(e_main_dl):
+            user_friendly_error_msg = "YouTube bot doğrulamasına takıldı. Lütfen çerezlerin güncel olduğundan emin olun veya bir süre sonra tekrar deneyin."
+            # Çerezlerin işe yaramadığını kullanıcıya bildirmek önemli.
+            if music_player.cookie_file_to_use: # Eğer çerez dosyası kullanılıyorsa
+                user_friendly_error_msg += " (Çerez dosyası kullanılmasına rağmen bu hata alındı.)"
+            else: # Çerez dosyası hiç kullanılmıyorsa
+                 user_friendly_error_msg += " (Çerez dosyası ayarlanmamış.)"
+
+        elif "Unsupported URL" in str(e_main_dl):
+            user_friendly_error_msg = "Bu URL türü desteklenmiyor."
+        elif "Unable to extract video data" in str(e_main_dl) or "Unable to download webpage" in str(e_main_dl):
+            user_friendly_error_msg = "Video verisi çıkarılamadı veya sayfaya erişilemedi."
+        elif "Video unavailable" in str(e_main_dl):
+            user_friendly_error_msg = "Bu video mevcut değil."
+        else: # Diğer DownloadError'lar için daha genel bir mesaj
+            user_friendly_error_msg = "Şarkı/video bulunamadı, erişilemiyor veya bir indirme hatası oluştu."
+        
+        try:
+            await loading_msg.edit(content=f"❌ {user_friendly_error_msg} (Detay: `{str(e_main_dl)[:100]}`)")
+        except discord.errors.NotFound: pass # Mesaj zaten silinmiş olabilir
+        except Exception as e_edit_err: logger.warning(f"Hata mesajı düzenlenirken hata: {e_edit_err}")
+
+    except Exception as e_general:
+        logger.error(f"Müzik yüklenirken genel ve beklenmedik bir hata oluştu: {e_general}\n{traceback.format_exc()}")
+        try:
+            await loading_msg.edit(content=f"❌ Müzik yüklenirken beklenmedik bir hata oluştu. Lütfen logları kontrol edin. (Hata: {str(e_general)[:100]})")
+        except discord.errors.NotFound: pass
+        except Exception as e_edit_gen_err: logger.warning(f"Genel hata mesajı düzenlenirken hata: {e_edit_gen_err}")
 
 @bot.command(name='skip', aliases=['s', 'geç'])
 async def skip_song_cmd(ctx: commands.Context):
