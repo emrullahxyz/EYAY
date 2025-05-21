@@ -598,127 +598,150 @@ async def before_cleanup_command_tracking(): await bot.wait_until_ready()
 # --- Bot Olayları (on_ready, on_message) ---
 @bot.event
 async def on_ready():
-    global entry_channel_id, inactivity_timeout, initial_ready_complete
+    global entry_channel_id, inactivity_timeout, initial_ready_complete # Bayrağı global olarak al
 
-    if not initial_ready_complete: # Sadece ilk defa çalışsın
+    # Bu blok sadece ilk on_ready çağrısında çalışsın
+    if not initial_ready_complete:
         logger.info(f"{bot.user.name} olarak giriş yapıldı (ID: {bot.user.id})")
         logger.info(f"Discord.py Sürümü: {discord.__version__}")
 
-        if not init_db_pool(): logger.critical("DB Havuzu başlatılamadı.")
+        if not init_db_pool(): # Veritabanı havuzunu başlat
+            logger.critical("DB Havuzu başlatılamadı, bot düzgün çalışmayabilir.")
+            # Gerekirse burada çıkış yapılabilir veya botun bazı özellikleri devre dışı bırakılabilir.
         setup_database() # Tabloları kontrol et/oluştur
 
+        # Yapılandırma ayarlarını DB'den yükle
         entry_channel_id_str = load_config_db('entry_channel_id', str(DEFAULT_ENTRY_CHANNEL_ID))
-        try: entry_channel_id = int(entry_channel_id_str) if entry_channel_id_str else None
-        except: entry_channel_id = None
-        if entry_channel_id is None and DEFAULT_ENTRY_CHANNEL_ID:
+        try:
+            entry_channel_id = int(entry_channel_id_str) if entry_channel_id_str else None
+        except (ValueError, TypeError):
+            entry_channel_id = None # Hata durumunda None
+        if entry_channel_id is None and DEFAULT_ENTRY_CHANNEL_ID: # Ortam değişkeninden varsayılanı dene
             try: entry_channel_id = int(DEFAULT_ENTRY_CHANNEL_ID)
-            except: logger.warning("Varsayılan ENTRY_CHANNEL_ID de geçersiz.")
-        if entry_channel_id is None: logger.warning("Giriş Kanalı ID'si ayarlanmadı!")
+            except: logger.warning(f"Varsayılan ENTRY_CHANNEL_ID ('{DEFAULT_ENTRY_CHANNEL_ID}') de geçersiz.")
+        if entry_channel_id is None:
+            logger.warning("Giriş Kanalı ID'si (entry_channel_id) ayarlanmamış! Otomatik kanal oluşturma düzgün çalışmayabilir.")
 
         inactivity_timeout_hours_str = load_config_db('inactivity_timeout_hours', str(DEFAULT_INACTIVITY_TIMEOUT_HOURS))
         try:
             timeout_val = float(inactivity_timeout_hours_str)
-            inactivity_timeout = datetime.timedelta(hours=timeout_val) if timeout_val > 0 else None
-        except:
-            inactivity_timeout = datetime.timedelta(hours=float(DEFAULT_INACTIVITY_TIMEOUT_HOURS))
-            logger.warning(f"inactivity_timeout_hours yüklenemedi, varsayılan kullanılıyor.")
-        logger.info(f"Ayarlar - Giriş Kanalı: {entry_channel_id}, Zaman Aşımı: {inactivity_timeout}")
+            if timeout_val <= 0: inactivity_timeout = None # 0 veya negatifse zaman aşımını kapat
+            else: inactivity_timeout = datetime.timedelta(hours=timeout_val)
+        except (ValueError, TypeError):
+            inactivity_timeout = datetime.timedelta(hours=float(DEFAULT_INACTIVITY_TIMEOUT_HOURS)) # Varsayılana dön
+            logger.warning(f"DB/Env'den inactivity_timeout_hours yüklenemedi, varsayılan {DEFAULT_INACTIVITY_TIMEOUT_HOURS} saat kullanılıyor.")
+        logger.info(f"Mevcut Ayarlar - Giriş Kanalı: {entry_channel_id}, Zaman Aşımı: {inactivity_timeout}")
 
-        # Çerez dosyası yolunu bul ve ayarla
-        logger.info("Render'daki olası çerez dosyası yolları kontrol ediliyor...")
-        # Render Secret File için öncelikli ve en olası yol:
-        render_secret_file_path_primary = "/etc/secrets/cookies.txt"
-        # Diğer olası yollar (Render'ın çalışma şekline göre değişebilir)
-        possible_cookie_paths_secondary = [
-            "cookies.txt",  # Çalışma dizini
-            "/opt/render/project/src/cookies.txt", # Proje kaynak dizini
-            # "/var/run/secrets/cookies.txt" # Farklı bir secret mount noktası
+        # Kalıcı verileri (geçici kanallar) yükle
+        temporary_chat_channels.clear(); user_to_channel_map.clear(); channel_last_active.clear(); active_ai_chats.clear(); warned_inactive_channels.clear()
+        conn_on_ready = None; loaded_channels_db_on_ready = []
+        try:
+            conn_on_ready = db_connect()
+            if conn_on_ready:
+                cursor_on_ready = conn_on_ready.cursor(cursor_factory=DictCursor)
+                cursor_on_ready.execute("SELECT channel_id, user_id, last_active, model_name FROM temp_channels")
+                loaded_channels_db_on_ready = cursor_on_ready.fetchall()
+                release_db_connection(conn_on_ready)
+                logger.info(f"{len(loaded_channels_db_on_ready)} geçici kanal veritabanından yüklendi (on_ready).")
+            else:
+                logger.error("Geçici kanallar yüklenemedi: Veritabanı bağlantısı yok (on_ready).")
+        except Exception as e_db_load:
+            logger.error(f"Geçici kanallar yüklenirken DB hatası (on_ready): {e_db_load}")
+            if conn_on_ready: release_db_connection(conn_on_ready)
+
+        valid_channel_count_on_ready = 0; invalid_ids_to_remove_on_ready = []
+        bot_guild_ids_on_ready = {g.id for g in bot.guilds}
+        for db_row_on_ready in loaded_channels_db_on_ready:
+            ch_id_or, u_id_or, last_active_ts_or, model_name_or = db_row_on_ready['channel_id'], db_row_on_ready['user_id'], db_row_on_ready['last_active'], db_row_on_ready['model_name']
+            channel_obj_or = bot.get_channel(ch_id_or)
+            if channel_obj_or and isinstance(channel_obj_or, discord.TextChannel) and channel_obj_or.guild.id in bot_guild_ids_on_ready:
+                temporary_chat_channels.add(ch_id_or); user_to_channel_map[u_id_or] = ch_id_or
+                if last_active_ts_or.tzinfo is None: last_active_ts_or = last_active_ts_or.replace(tzinfo=datetime.timezone.utc)
+                channel_last_active[ch_id_or] = last_active_ts_or
+                valid_channel_count_on_ready += 1
+            else: invalid_ids_to_remove_on_ready.append(ch_id_or)
+        for invalid_id_or in invalid_ids_to_remove_on_ready: remove_temp_channel_db(invalid_id_or)
+        logger.info(f"{valid_channel_count_on_ready} geçerli geçici kanal DB'den yüklendi ve state'e eklendi (on_ready).")
+
+
+        # --- Render'da cookies.txt dosyasının yolunu tespit etme ve ayarlama ---
+        logger.info("Render'da çerez dosyası yolu tespit ediliyor (Secret File adı: cookies.txt)...")
+        
+        # Render'ın dosyayı yerleştirebileceği olası yollar
+        # Filename / Path olarak sadece "cookies.txt" girdiyseniz, Render bunu
+        # genellikle çalışma dizinine veya /opt/render/project/src/ gibi bir yere koyar.
+        possible_secret_file_locations = [
+            os.path.join(os.getcwd(), "cookies.txt"),  # Mevcut çalışma dizini (en olası)
+            "cookies.txt",                             # Doğrudan çalışma dizininde
+            "/opt/render/project/src/cookies.txt",     # Tipik Render proje kaynak dizini
+            "/app/cookies.txt",                        # Başka bir yaygın Render uygulama yolu
+            "/etc/secrets/cookies.txt",                # Bazı sistemlerde Secret'ların standart yolu
+            "/var/run/secrets/cookies.txt"             # Başka bir olası secret yolu
         ]
-        found_and_copied_cookie_path_for_ytdlp = None
 
-        if os.path.exists(render_secret_file_path_primary):
-            logger.info(f"BULUNDU: Gizli çerez dosyası (birincil yol): {render_secret_file_path_primary}")
+        original_secret_file_path = None # Bulunan salt okunur secret file yolu
+
+        for path_to_check in possible_secret_file_locations:
+            if os.path.exists(path_to_check):
+                logger.info(f"BULUNDU: Secret 'cookies.txt' şu yolda mevcut: {path_to_check}")
+                original_secret_file_path = path_to_check
+                break # İlk bulunanı kullan
+            else:
+                logger.info(f"Bulunamadı (denenen yol): {path_to_check}")
+
+        found_and_copied_cookie_path_for_ytdlp = None # Kopyalanan, yazılabilir dosyanın yolu
+
+        if original_secret_file_path:
             try:
-                shutil.copy2(render_secret_file_path_primary, WRITABLE_COOKIE_PATH)
-                logger.info(f"Çerez dosyası kopyalandı (yazılabilir): {WRITABLE_COOKIE_PATH}")
+                # Çerez dosyasını yazılabilir bir konuma kopyala
+                shutil.copy2(original_secret_file_path, WRITABLE_COOKIE_PATH)
+                logger.info(f"Çerez dosyası '{original_secret_file_path}' kaynağından şuraya kopyalandı (yazılabilir): {WRITABLE_COOKIE_PATH}")
                 found_and_copied_cookie_path_for_ytdlp = WRITABLE_COOKIE_PATH
             except Exception as e_copy:
-                logger.error(f"Gizli çerez ({render_secret_file_path_primary}) kopyalanamadı ({WRITABLE_COOKIE_PATH}): {e_copy}")
-                found_and_copied_cookie_path_for_ytdlp = render_secret_file_path_primary # Salt okunur olanı dene
+                logger.error(f"Gizli çerez dosyası ({original_secret_file_path}) şuraya kopyalanamadı ({WRITABLE_COOKIE_PATH}): {e_copy}")
+                # Kopyalama başarısız olursa, salt okunur olanı kullanmayı deneyebiliriz.
+                # Bu, yt-dlp yazmak isterse yine hata verecektir.
+                logger.warning(f"Yazılabilir kopya oluşturulamadı. yt-dlp için salt okunur yol ({original_secret_file_path}) deneniyor. Bu, 'Read-only file system' hatasına neden olabilir.")
+                found_and_copied_cookie_path_for_ytdlp = original_secret_file_path
         else:
-            logger.warning(f"Birincil gizli çerez yolu ({render_secret_file_path_primary}) bulunamadı. Alternatifler taranıyor...")
-            for alt_path in possible_cookie_paths_secondary:
-                if os.path.exists(alt_path):
-                    logger.info(f"BULUNDU (alternatif): Çerez dosyası: {alt_path}")
-                    try:
-                        shutil.copy2(alt_path, WRITABLE_COOKIE_PATH)
-                        logger.info(f"Alternatif çerez dosyası kopyalandı (yazılabilir): {WRITABLE_COOKIE_PATH}")
-                        found_and_copied_cookie_path_for_ytdlp = WRITABLE_COOKIE_PATH
-                        break # İlk bulunan alternatifi kullan
-                    except Exception as e_copy_alt:
-                        logger.error(f"Alternatif çerez ({alt_path}) kopyalanamadı ({WRITABLE_COOKIE_PATH}): {e_copy_alt}")
-                        # Kopyalanamazsa, bu yolu da salt okunur olarak deneyebiliriz
-                        found_and_copied_cookie_path_for_ytdlp = alt_path
-                        break # Bu alternatifi (salt okunur) kullanmayı dene
-            if not found_and_copied_cookie_path_for_ytdlp:
-                 logger.error("KRİTİK: Hiçbir çerez dosyası yolu bulunamadı!")
+            logger.error("KRİTİK: Render'da 'cookies.txt' dosyası belirtilen olası yollarda bulunamadı! "
+                         "YouTube indirmeleri başarısız olabilir. Lütfen Render'daki Secret File ayarlarını ve "
+                         "dosyanın deploy sonrası hangi yolda olduğunu kontrol edin.")
 
         music_player.set_cookie_file_for_ytdlp(found_and_copied_cookie_path_for_ytdlp)
+        # --- Çerez yolu tespiti sonu ---
 
-        await music_player.load_volume_settings()
+        await music_player.load_volume_settings() # MusicPlayer ses ayarlarını yükle
 
+        # Arka plan görevlerini başlat
         if not check_inactivity.is_running(): check_inactivity.start()
         if not cleanup_command_tracking.is_running(): cleanup_command_tracking.start()
-        initial_ready_complete = True
+
+        initial_ready_complete = True # Bayrağı set et, bu blok bir daha çalışmasın
         logger.info("Bot ilk başlangıç ayarlarını tamamladı.")
     else:
-        logger.info("Bot yeniden bağlandı (on_ready), başlangıç ayarları atlanıyor.")
+        logger.info(f"Bot yeniden bağlandı (on_ready tekrar tetiklendi), başlangıç ayarları atlanıyor.")
 
-    # Aktivite her zaman güncellenebilir
-    activity_name = "!help | AI & Music" # Prefix'i dinamik alabiliriz
-    if entry_channel_id:
+
+    # Bot aktivitesi her on_ready'de (yeniden bağlanmalarda da) ayarlanabilir
+    activity_name = "!help | AI & Music" # Prefix'i dinamik almak daha iyi olabilir (örn: bot.command_prefix[0])
+    if entry_channel_id: # entry_channel_id'nin globalden doğru okunması lazım
         try:
             entry_ch_obj = await bot.fetch_channel(entry_channel_id)
             if entry_ch_obj: activity_name = "!help | AI & Music"
-        except: pass
-    await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name=activity_name))
-    logger.info(f"Bot {len(bot.guilds)} sunucuda aktif. Aktivite: '{activity_name}'")
+        except discord.errors.NotFound:
+             logger.warning(f"on_ready: Giriş kanalı (ID: {entry_channel_id}) bulunamadı (aktivite ayarlanırken).")
+        except Exception as e_fetch_ch:
+             logger.warning(f"on_ready: Giriş kanalı getirilirken hata (ID: {entry_channel_id}): {e_fetch_ch}")
 
-
-# on_message, check_inactivity, on_guild_channel_delete önceki gibi
-# AI Komutları (endchat, resetchat, ...) önceki gibi
-# Müzik Komutları (play_music_cmd, skip_song_cmd, ...) önceki gibi
-# Genel Hata Yakalama (on_command_error) önceki gibi
-# Flask Web Sunucusu ve Tek Instance Kontrolü önceki gibi
-# Ana __main__ bloğu önceki gibi
-
-# ÖNEMLİ: Bu dosyada sadece __init__ ve on_ready güncellendi.
-# Diğer fonksiyonların ve komutların tam halleri için bir önceki
-# onaylanmış kod bloğuna bakmanız gerekecektir.
-# Bu, cevabın çok uzamasını engellemek içindir.
-# ... (create_private_chat_channel, send_to_ai_and_respond fonksiyonları buraya gelecek)
-# ... (check_inactivity, on_guild_channel_delete fonksiyonları buraya gelecek)
-# ... (Tüm AI komutları buraya gelecek: endchat, resetchat, clear, ask, listmodels, setmodel, setentrychannel, settimeout, gemini, deepseek, custom_help)
-# ... (Tüm Müzik komutları buraya gelecek: play_music_cmd, skip_song_cmd, pause_music_cmd, resume_music_cmd, stop_music_cmd, show_queue_cmd, set_volume_cmd, set_default_volume_cmd, rewind_cmd, forward_cmd, seek_cmd, loop_cmd, shuffle_cmd, now_playing_cmd, leave_voice_cmd)
-# ... (on_command_error fonksiyonu buraya gelecek)
-# ... (Flask app ve run_webserver_thread fonksiyonları buraya gelecek)
-# ... (ensure_single_instance_lock ve cleanup_instance_socket fonksiyonları buraya gelecek)
-# ... (__main__ bloğu buraya gelecek)
-
-# YUKARIDAKİ YORUM SATIRLARIYLA İŞARETLENMİŞ KISIMLARI
-# BİR ÖNCEKİ TAM KOD VERSİYONUNDAN KOPYALAYIP BURAYA EKLEMELİSİNİZ.
-# Sadece MusicPlayer.__init__ ve on_ready fonksiyonları bu mesajda güncellenmiştir.
-
-# (Diğer fonksiyonlar ve komutlar için bir önceki tam kod bloğundan kopyalayın)
-# ... (create_private_chat_channel, send_to_ai_and_respond)
-# ... (check_inactivity, on_guild_channel_delete)
-# ... (Tüm AI ve Müzik komutları, on_command_error)
-# ... (Flask, Tek instance, __main__)
-# Yukarıdaki eksik kısımları bir önceki tam kodunuzdan buraya eklemelisiniz.
-# Ben sadece on_ready ve MusicPlayer.__init__ ile ilgili kısımları güncelledim.
+    try:
+        await bot.change_presence(activity=discord.Activity(type=discord.ActivityType.listening, name=activity_name))
+        logger.info(f"Bot {len(bot.guilds)} sunucuda aktif. Aktivite: '{activity_name}'")
+    except Exception as e_presence:
+        logger.warning(f"Bot aktivitesi ayarlanamadı: {e_presence}")
+    logger.info("Bot komutları ve mesajları dinliyor (veya yeniden bağlandı)...");
 
 # --- create_private_chat_channel, send_to_ai_and_respond ---
-# (Önceki versiyondan kopyalanacak)
 async def create_private_chat_channel(guild: discord.Guild, author: discord.Member):
     if not guild.me.guild_permissions.manage_channels:
         logger.warning(f"'{guild.name}' sunucusunda 'Kanalları Yönet' izni eksik.")
