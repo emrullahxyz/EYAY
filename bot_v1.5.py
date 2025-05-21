@@ -1075,7 +1075,7 @@ async def on_ready():
     ]
 
     found_cookie_path = None
-    for path_to_check in possible_cookie_paths:
+    for path_to_check in possible_paths:
         if os.path.exists(path_to_check):
             logger.info(f"BULUNDU: Çerez dosyası şu yolda mevcut: {path_to_check}")
             found_cookie_path = path_to_check
