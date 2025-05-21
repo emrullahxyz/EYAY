@@ -139,7 +139,7 @@ class MusicPlayer:
             'default_search': 'auto',
             'source_address': '0.0.0.0',
             'extract_flat': 'in_playlist',
-            'cookiefile': None, # Başlangıçta None, on_ready'de ayarlanacak
+            'cookiefile': self.cookie_file_to_use, # Başlangıçta None, on_ready'de ayarlanacak
             'geo_bypass': True,
             # 'verbose': True, # Hata ayıklama için geçici olarak açılabilir
             # 'dump_intermediate_pages': True, # Hata ayıklama için
@@ -1348,16 +1348,34 @@ async def play_music_cmd(ctx: commands.Context, *, query: str = None):
                     if not url_detail: logger.warning(f"Playlist öğesi için URL yok: {entry.get('title')}"); continue
                     try:
                         # Her video için detaylı bilgi, güncel ytdl_format_options ile alınır
-                        with yt_dlp.YoutubeDL(music_player.ytdl_format_options) as ydl_detail:
+                        with yt_dlp.YoutubeDL(music_player.ytdl_format_options) as ydl_detail: # music_player'ın güncel seçeneklerini kullan
                             v_info = await asyncio.to_thread(ydl_detail.extract_info, url_detail, download=False)
-                        if v_info.get('entries'): v_info = v_info['entries'][0]
-                        title = v_info.get('title','Bilinmeyen'); stream = v_info.get('url'); dur_s = v_info.get('duration',0)
-                        dur_str = str(datetime.timedelta(seconds=dur_s)) if dur_s else 'Bilinmiyor'; thumb = v_info.get('thumbnail')
-                        if stream: songs_to_add.append({'title':title,'url':stream,'duration':dur_str,'thumbnail':thumb,'requester':ctx.author.display_name})
-                        else: logger.warning(f"Stream URL bulunamadı (playlist item): {title}")
+
+                        if not v_info: # Eğer yt-dlp video bilgisini alamadıysa (None döndüyse)
+                            logger.warning(f"Playlist öğesi için video bilgisi alınamadı (v_info is None): {url_detail}")
+                            continue # Bu öğeyi atla
+
+                        if v_info.get('entries'): # Hala playlist gibi bir yapıysa ilkini al
+                            if not v_info['entries']:
+                                logger.warning(f"Playlist öğesi için 'entries' boş geldi: {url_detail}")
+                                continue
+                            v_info = v_info['entries'][0]
+                            if not v_info: # entries[0] da None olabilir
+                                logger.warning(f"Playlist öğesi için 'entries[0]' None geldi: {url_detail}")
+                                continue
+                        
+                        title = v_info.get('title', f'Bilinmeyen Video ({count+1})') # v_info None değilse .get() güvenli
+                        stream = v_info.get('url')
+                        # ... (geri kalan kod aynı) ...
+                        if stream:
+                            songs_to_add.append({'title':title,'url':stream,'duration':dur_str,'thumbnail':thumb,'requester':ctx.author.display_name})
+                        else:
+                            logger.warning(f"Stream URL bulunamadı (playlist item): {title} - URL: {url_detail}")
                         count += 1
-                    except yt_dlp.utils.DownloadError as e_dl_playlist: logger.warning(f"Playlist öğesi '{entry.get('title')}' indirilemedi: {e_dl_playlist}")
-                    except Exception as e_playlist_item: logger.error(f"Playlist öğesi işlenirken hata ({entry.get('title')}): {e_playlist_item}")
+                    except yt_dlp.utils.DownloadError as e_dl_playlist:
+                        logger.warning(f"Playlist öğesi '{entry.get('title', url_detail)}' indirilemedi/bilgi alınamadı: {e_dl_playlist}")
+                    except Exception as e_playlist_item:
+                        logger.error(f"Playlist öğesi işlenirken beklenmedik hata ({entry.get('title', url_detail)}): {e_playlist_item}")
         else:
             if 'entries' in info and info.get('entries'): info = info['entries'][0] # Arama sonucuysa ilkini al
             title=info.get('title','Bilinmeyen');stream=info.get('url');dur_s=info.get('duration',0)
@@ -1556,7 +1574,6 @@ async def leave_voice_cmd(ctx: commands.Context):
     if vc and vc.is_connected():
         await music_player.cleanup(ctx.guild.id)
         music_player.voice_clients.pop(ctx.guild.id, None)
-        await ctx.send("👋 Ses kanalından ayrıldım.")
     else: await ctx.send("❌ Zaten ses kanalında değilim.")
 
 # --- Flask Web Sunucusu ---
