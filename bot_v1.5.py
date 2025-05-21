@@ -154,9 +154,8 @@ class MusicPlayer:
             'default_search': 'auto',
             'source_address': '0.0.0.0', # Bağlantı sorunlarını çözmeye yardımcı olabilir
             'extract_flat': 'in_playlist', # Playlist'leri verimli işlemek için
-            'cookiefile': '/etc/secrets/cookies.txt', # Render'da Secret File olarak belirttiğiniz yol
+            'cookiefile': None, # Başlangıçta None, on_ready'de ayarlanacak
             'geo_bypass': True, # Coğrafi kısıtlamaları atlamaya yardımcı olabilir
-            'cookiefile': 'TESPIT_EDILEN_DOGRU_YOL/cookies.txt',
 
         }
         self.ffmpeg_options = {
@@ -175,6 +174,16 @@ class MusicPlayer:
         self.shuffle_settings: Dict[int, bool] = {} # Karıştırma açık/kapalı
 
         # load_volume_settings çağrısı __init__'ten on_ready'e taşındı.
+
+    def set_cookie_file_for_ytdlp(self, path: Optional[str]):
+        """yt-dlp için kullanılacak çerez dosyasının yolunu ayarlar."""
+        self.cookie_file_to_use = path
+        if self.ytdl_format_options: # Güvenlik kontrolü
+            self.ytdl_format_options['cookiefile'] = path
+        if path:
+            logger.info(f"yt-dlp için çerez dosyası yolu ayarlandı: {path}")
+        else:
+            logger.warning("yt-dlp için çerez dosyası yolu kaldırılamadı veya ayarlanamadı (path is None).")
 
     def get_lock(self, guild_id: int) -> asyncio.Lock:
         if guild_id not in self.locks:
@@ -1056,6 +1065,31 @@ async def on_ready():
     global entry_channel_id, inactivity_timeout # Diğer global'ler zaten tanımlı
     logger.info(f"{bot.user.name} olarak giriş yapıldı (ID: {bot.user.id})")
     logger.info(f"Discord.py Sürümü: {discord.__version__}")
+    logger.info("Render'daki olası çerez dosyası yolları kontrol ediliyor...")
+
+    possible_paths = [
+    "cookies.txt",  # Çalışma dizini
+    "/app/cookies.txt", # Render'da yaygın bir uygulama yolu
+    "/opt/render/project/src/cookies.txt", # Başka bir olası yol
+    "/etc/secrets/cookies.txt" # Standart secret yolu
+    ]
+
+    found_cookie_path = None
+    for path_to_check in possible_cookie_paths:
+        if os.path.exists(path_to_check):
+            logger.info(f"BULUNDU: Çerez dosyası şu yolda mevcut: {path_to_check}")
+            found_cookie_path = path_to_check
+            break # İlk bulunanı kullan
+        else:
+            logger.info(f"Bulunamadı (denenen yol): {path_to_check}")
+
+    if found_cookie_path:
+        music_player.set_cookie_file_for_ytdlp(found_cookie_path)
+    else:
+        logger.error("KRİTİK: Render'da 'cookies.txt' dosyası belirtilen olası yollarda bulunamadı! "
+                     "YouTube indirmeleri başarısız olabilir. Lütfen Secret File ayarlarını ve dosya yolunu kontrol edin.")
+        music_player.set_cookie_file_for_ytdlp(None) # Çerezsiz devam etmeye çalışır (muhtemelen hata verir)
+
 
     if not init_db_pool():
         logger.critical("DB Havuzu başlatılamadı, bot düzgün çalışmayabilir.")
